@@ -1,0 +1,73 @@
+/**
+ * HTTP 请求统一封装
+ * 基于 uni.request（H5 底层 XHR，小程序原生），双端通用
+ * 统一错误处理、baseURL 管理
+ */
+import type { PageResponse } from '@/types/api'
+
+const BASE_URL = '/api'  // H5 走 vite 代理；小程序端条件编译切绝对地址
+
+/** API 错误类型 */
+export interface ApiError {
+  statusCode: number
+  message: string
+  detail?: string
+}
+
+/** 构建带 query 参数的 URL */
+function buildUrl(path: string, params?: Record<string, any>): string {
+  if (!params) return path
+  const query = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&')
+  return query ? `${path}?${query}` : path
+}
+
+/** 统一错误归一化 */
+function normalizeError(res: UniApp.RequestSuccessCallbackResult): ApiError {
+  const data = res.data as Record<string, any>
+  // 后端有两种错误格式：HTTPException {"detail":"..."} / 500 {"code":500,"message":"..."}
+  const message = data?.detail || data?.message || `请求失败 (${res.statusCode})`
+  return { statusCode: res.statusCode, message, detail: data?.detail }
+}
+
+/**
+ * 统一请求方法
+ * @param opts.url 接口路径（不含 /api 前缀）
+ * @param opts.method GET | POST
+ * @param opts.data POST 请求体
+ * @param opts.params GET query 参数
+ */
+export function request<T>(opts: {
+  url: string
+  method?: 'GET' | 'POST'
+  data?: Record<string, any>
+  params?: Record<string, any>
+}): Promise<T> {
+  return new Promise((resolve, reject) => {
+    uni.request({
+      url: BASE_URL + buildUrl(opts.url, opts.params),
+      method: opts.method || 'GET',
+      data: opts.data,
+      header: { 'Content-Type': 'application/json' },
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data as T)
+        } else {
+          const err = normalizeError(res)
+          uni.showToast({ title: err.message, icon: 'none' })
+          reject(err)
+        }
+      },
+      fail: (err) => {
+        const apiErr: ApiError = { statusCode: 0, message: '网络请求失败', detail: err.errMsg }
+        uni.showToast({ title: apiErr.message, icon: 'none' })
+        reject(apiErr)
+      },
+    })
+  })
+}
+
+/** 分页响应快捷类型 */
+export type Paginated<T> = PageResponse<T>

@@ -1,0 +1,25 @@
+# 量化面试题库 - 数据处理流水线依赖
+# 安装: sudo pip3 install -r requirements.txt
+
+# CLI 框架
+click>=8.1.0
+
+# PDF 解析（轻量，本批可装）
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
+
+# 图像处理
+opencv-python>=4.9.0
+numpy>=1.26.0
+
+# OCR（重依赖，A2-A4 执行时再装）
+# paddlepaddle>=2.6.0          # CPU 版，GPU 版用 paddlepaddle-gpu
+# paddleocr>=2.7.0             # 含 PP-OCRv4 + PP-StructureV3
+# PP-FormulaNet-S 需从 PaddleOCR 产线调用
+
+# 去重
+# simhash>=2.1.0
+# datasketch>=1.6.0            # MinHash + LSH
+
+# LaTeX 校验
+# latex2mathml>=3.7.0

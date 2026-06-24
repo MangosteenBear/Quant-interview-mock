@@ -1,0 +1,136 @@
+<!--
+  设置页 — 夜间模式 + 字体大小调节
+-->
+<template>
+  <view class="settings-page">
+    <!-- 主题设置 -->
+    <view class="settings-group">
+      <text class="group-title">显示设置</text>
+      <view class="settings-item">
+        <text class="item-label">夜间模式</text>
+        <switch :checked="settings.isDark" @change="onToggleTheme" color="#1e3a5f" />
+      </view>
+    </view>
+
+    <!-- 字体大小 -->
+    <view class="settings-group">
+      <text class="group-title">字体大小</text>
+      <view class="font-size-options">
+        <view
+          v-for="opt in fontOptions"
+          :key="opt.value"
+          class="font-option"
+          :class="{ active: settings.fontSize === opt.value }"
+          @click="onSetFontSize(opt.value)"
+        >
+          <text :style="{ fontSize: opt.size }">A</text>
+          <text class="font-label">{{ opt.label }}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 关于 -->
+    <view class="settings-group">
+      <text class="group-title">关于</text>
+      <view class="settings-item">
+        <text class="item-label">版本</text>
+        <text class="item-value">v0.1.0</text>
+      </view>
+      <view class="settings-item">
+        <text class="item-label">设备 ID</text>
+        <text class="item-value device-id">{{ settings.deviceId?.slice(0, 8) }}...</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import { useSettingsStore, type FontSize } from '@/stores/settings'
+
+const settings = useSettingsStore()
+
+const fontOptions = [
+  { value: 'small' as FontSize, label: '小', size: '14px' },
+  { value: 'medium' as FontSize, label: '中', size: '16px' },
+  { value: 'large' as FontSize, label: '大', size: '18px' },
+]
+
+function onToggleTheme() {
+  settings.toggleTheme()
+}
+
+function onSetFontSize(size: FontSize) {
+  settings.setFontSize(size)
+}
+
+onMounted(() => {
+  settings.initDeviceId()
+  settings.applyTheme()
+})
+</script>
+
+<style scoped>
+.settings-page {
+  min-height: 100vh;
+  background: var(--bg-page, #f7f9fc);
+  padding: 12px;
+}
+
+.settings-group {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 4px 16px;
+  margin-bottom: 12px;
+}
+.group-title {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  padding: 10px 0 6px;
+  display: block;
+}
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-color, #f0f0f0);
+}
+.item-label {
+  font-size: 15px;
+  color: var(--text-primary, #2c3338);
+}
+.item-value {
+  font-size: 14px;
+  color: var(--text-secondary, #6b7280);
+}
+.device-id {
+  font-family: monospace;
+}
+
+/* 字体大小选项 */
+.font-size-options {
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+}
+.font-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+  border: 2px solid var(--border-color, #e0e0e0);
+  border-radius: 10px;
+  color: var(--text-primary, #2c3338);
+}
+.font-option.active {
+  border-color: var(--primary-color, #1e3a5f);
+  background: var(--bg-primary-light, #e8f0fe);
+}
+.font-label {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+</style>
