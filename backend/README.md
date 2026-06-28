@@ -66,6 +66,10 @@ DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/quantquiz
 
 ## 数据模型
 
-详见 `/workspace/docs/product-design.md` §3.3
+详见 [数据库设计文档](../docs/database-design.md)（8 表字段 + ER 图）
 
 共 8 张表：sources / questions / options / solutions / tags / question_tags / attempt_logs / favorites
+
+## API 端点
+
+完整请求/响应示例详见 [API 参考文档](../docs/api-reference.md)

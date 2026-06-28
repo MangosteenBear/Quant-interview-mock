@@ -323,35 +323,50 @@ CPU 跑 PaddleOCR 较慢（单本 PDF 可能数小时）。
 
 ## 九、项目目录结构（实施阶段）
 
+> ⚠️ 以下为**实际代码结构**，与原规划的差异见下方"实际状态说明"。
+
 ```
 /workspace
-├── pipeline/                      # 数据处理流水线（Python）
-│   ├── pdf_renderer.py            # PDF 渲染与扫描版判定
-│   ├── layout_analyzer.py         # 版面分析 + 多栏重组
-│   ├── ocr_dispatcher.py          # 分流 OCR（文字/公式/表格）
-│   ├── latex_builder.py           # LaTeX 重建与中间格式
-│   ├── question_splitter.py       # 题目边界识别
-│   ├── answer_linker.py           # 答案关联
-│   ├── dedup.py                   # 去重机制
-│   └── cli.py                     # CLI 入口
 ├── backend/                       # 后端（FastAPI）
 │   ├── app/
-│   │   ├── api/                   # 题目 API
-│   │   ├── models/                # SQLAlchemy 模型
-│   │   ├── review/                # 审核后台 API
-│   │   └── main.py
-│   ├── alembic/                   # 数据库迁移
-│   └── Dockerfile
-├── frontend/                      # 前端（uni-app）
+│   │   ├── api/                   # 路由（questions/favorites/sources/tags）
+│   │   ├── models/                # SQLAlchemy 模型（8 张表）
+│   │   ├── schemas/               # Pydantic 请求/响应模型
+│   │   ├── config.py              # 配置
+│   │   ├── database.py            # 异步引擎与会话
+│   │   └── main.py                # FastAPI 入口
+│   ├── seed_data.py               # 种子数据（15 道量化样题）
+│   └── requirements.txt
+├── frontend/                      # 前端（uni-app Vue3）
 │   ├── src/
-│   │   ├── pages/                 # 列表/详情/搜索/收藏/设置
-│   │   ├── components/FormulaText.vue  # 公式渲染组件
-│   │   └── stores/                # Pinia
-│   └── manifest.json              # 小程序配置
-├── review-admin/                  # 审核后台前端（Vue）
-├── docker-compose.yml             # 部署编排
-└── docs/                          # 文档
+│   │   ├── api/                   # HTTP 请求封装
+│   │   ├── components/            # 组件（FormulaText 公式渲染等）
+│   │   ├── pages/                 # 6 页面（首页/列表/详情/搜索/收藏/设置）
+│   │   ├── stores/                # Pinia 状态管理
+│   │   ├── types/                 # TS 类型定义
+│   │   └── utils/                 # 工具（markdown/难度/device_id）
+│   └── vite.config.ts             # /api 代理
+├── pipeline/                      # PDF 数据流水线（脚手架阶段）
+│   ├── cli.py                     # CLI 入口（6 命令 TODO）
+│   ├── logger.py                  # JSON 结构化日志
+│   └── requirements.txt
+└── docs/
+    ├── product-design.md          # 本文档（PRD）
+    ├── architecture.md            # 系统架构
+    ├── api-reference.md           # API 参考
+    └── database-design.md         # 数据库设计
 ```
+
+### 实际状态说明（与原规划差异）
+
+| 原规划 | 实际 | 说明 |
+|--------|------|------|
+| `pipeline/` 7 模块文件 | 仅 `cli.py` + `logger.py` | 7 模块 TODO（A2-A8） |
+| `backend/app/review/` | 未创建 | 审核后台 TODO（A9） |
+| `backend/alembic/` | 未创建 | 数据库迁移 TODO（A10） |
+| `backend/Dockerfile` | 未创建 | 部署 TODO（B12） |
+| `review-admin/` | 未创建 | 审核后台前端 TODO（A9） |
+| `docker-compose.yml` | 未创建 | 部署编排 TODO（B12） |
 
 ---
 
