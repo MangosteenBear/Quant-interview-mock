@@ -1,80 +1,71 @@
-<!--
-  题库列表页
-  分页加载 + 筛选（来源/题型/难度） + 骨架屏
--->
 <template>
   <view class="list-page">
-    <!-- 筛选区 -->
-    <view class="filter-bar">
-      <view class="filter-item" @click="showSourcePicker = !showSourcePicker">
-        <text>{{ currentSourceName || '来源' }}</text>
-        <text class="arrow">▼</text>
+    <!-- 题型筛选 chips（水平滚动） -->
+    <scroll-view class="chips-bar" scroll-x>
+      <view class="chips-inner">
+        <view
+          class="chip"
+          :class="{ active: !filters.question_type }"
+          @click="selectType(undefined)"
+        >全部</view>
+        <view
+          v-for="(label, key) in typeOptions"
+          :key="key"
+          class="chip"
+          :class="{ active: filters.question_type === key }"
+          @click="selectType(key as any)"
+        >{{ label }}</view>
       </view>
-      <view class="filter-item" @click="showTypePicker = !showTypePicker">
-        <text>{{ currentTypeName || '题型' }}</text>
-        <text class="arrow">▼</text>
+    </scroll-view>
+
+    <!-- 统计行 + 难度筛选 -->
+    <view class="meta-row">
+      <text class="meta-count">{{ total }} 题 · 已做 {{ attemptedCount }}</text>
+      <view class="filter-pills">
+        <view class="pill" :class="{ active: !!filters.difficulty }" @click="showDiffPicker = !showDiffPicker">
+          {{ filters.difficulty ? `P${filters.difficulty}` : '难度' }} ▾
+        </view>
+        <view class="pill" :class="{ active: !!filters.source_id }" @click="showSourcePicker = !showSourcePicker">
+          {{ currentSourceName || '来源' }} ▾
+        </view>
+        <view v-if="hasFilter" class="pill clear" @click="clearFilters">清除</view>
       </view>
-      <view class="filter-item" @click="showDifficultyPicker = !showDifficultyPicker">
-        <text>{{ currentDifficultyName || '难度' }}</text>
-        <text class="arrow">▼</text>
-      </view>
-      <view v-if="hasFilter" class="filter-clear" @click="clearFilters">清除</view>
     </view>
 
-    <!-- 筛选下拉 -->
-    <view v-if="showSourcePicker" class="picker-dropdown">
-      <view class="picker-item" :class="{ active: !filters.source_id }" @click="selectSource(undefined)">全部</view>
-      <view
-        v-for="s in sources"
-        :key="s.id"
-        class="picker-item"
-        :class="{ active: filters.source_id === s.id }"
-        @click="selectSource(s.id)"
-      >{{ s.book_title.slice(0, 20) }}</view>
+    <!-- 难度下拉 -->
+    <view v-if="showDiffPicker" class="dropdown">
+      <view class="drop-item" :class="{ active: !filters.difficulty }" @click="selectDifficulty(undefined)">全部</view>
+      <view v-for="d in 5" :key="d" class="drop-item" :class="{ active: filters.difficulty === d }" @click="selectDifficulty(d)">P{{ d }}</view>
     </view>
-    <view v-if="showTypePicker" class="picker-dropdown">
-      <view class="picker-item" :class="{ active: !filters.question_type }" @click="selectType(undefined)">全部</view>
-      <view
-        v-for="(label, key) in typeOptions"
-        :key="key"
-        class="picker-item"
-        :class="{ active: filters.question_type === key }"
-        @click="selectType(key as any)"
-      >{{ label }}</view>
-    </view>
-    <view v-if="showDifficultyPicker" class="picker-dropdown">
-      <view class="picker-item" :class="{ active: !filters.difficulty }" @click="selectDifficulty(undefined)">全部</view>
-      <view
-        v-for="d in 5"
-        :key="d"
-        class="picker-item"
-        :class="{ active: filters.difficulty === d }"
-        @click="selectDifficulty(d)"
-      >P{{ d }}</view>
+
+    <!-- 来源下拉 -->
+    <view v-if="showSourcePicker" class="dropdown">
+      <view class="drop-item" :class="{ active: !filters.source_id }" @click="selectSource(undefined)">全部</view>
+      <view v-for="s in sources" :key="s.id" class="drop-item" :class="{ active: filters.source_id === s.id }" @click="selectSource(s.id)">
+        {{ s.book_title.slice(0, 22) }}
+      </view>
     </view>
 
     <!-- 遮罩 -->
-    <view v-if="showSourcePicker || showTypePicker || showDifficultyPicker" class="picker-mask" @click="closePickers" />
+    <view v-if="showDiffPicker || showSourcePicker" class="mask" @click="closePickers" />
 
-    <!-- 题目列表 -->
+    <!-- 列表 -->
     <view class="list-content">
-      <view v-if="loading && list.length === 0" class="loading-list">
-        <view v-for="i in 5" :key="i" class="skeleton-card" />
+      <view v-if="loading && list.length === 0">
+        <view v-for="i in 5" :key="i" class="skeleton" />
       </view>
-
       <view v-else-if="list.length === 0">
         <EmptyState text="暂无题目" />
       </view>
-
       <view v-else>
         <QuestionCard
-          v-for="q in list"
+          v-for="(q, index) in list"
           :key="q.id"
           :question="q"
-          @click="goDetail"
+          @click="goDetail(q.id, index)"
         />
-        <view v-if="loading" class="loading-more">加载中...</view>
-        <view v-else-if="!hasMore && list.length > 0" class="no-more">没有更多了</view>
+        <view v-if="loading" class="tip">加载中...</view>
+        <view v-else-if="!hasMore && list.length > 0" class="tip">没有更多了</view>
       </view>
     </view>
   </view>
@@ -84,6 +75,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { onReachBottom } from '@dcloudio/uni-app'
 import { useQuestionStore } from '@/stores/question'
+import { useAttemptStore } from '@/stores/attempt'
 import { listSources } from '@/api/source'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import type { SourceBrief, QuestionType } from '@/types/api'
@@ -91,45 +83,40 @@ import QuestionCard from '@/components/QuestionCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const questionStore = useQuestionStore()
+const attemptStore = useAttemptStore()
+
 const list = computed(() => questionStore.list)
+const total = computed(() => questionStore.total)
 const loading = computed(() => questionStore.loading)
 const hasMore = computed(() => questionStore.hasMore)
 const filters = computed(() => questionStore.filters)
 
 const sources = ref<SourceBrief[]>([])
+const showDiffPicker = ref(false)
 const showSourcePicker = ref(false)
-const showTypePicker = ref(false)
-const showDifficultyPicker = ref(false)
 const typeOptions = QUESTION_TYPE_LABELS
 
-const hasFilter = computed(() =>
-  filters.value.source_id || filters.value.question_type || filters.value.difficulty
-)
+const attemptedCount = computed(() => attemptStore.attemptedCount)
+
+const hasFilter = computed(() => filters.value.source_id || filters.value.question_type || filters.value.difficulty)
 
 const currentSourceName = computed(() => {
   const s = sources.value.find(s => s.id === filters.value.source_id)
-  return s ? s.book_title.slice(0, 10) : ''
+  return s ? s.book_title.slice(0, 8) : ''
 })
-const currentTypeName = computed(() =>
-  filters.value.question_type ? typeOptions[filters.value.question_type] : ''
-)
-const currentDifficultyName = computed(() =>
-  filters.value.difficulty ? `P${filters.value.difficulty}` : ''
-)
 
+function selectType(type: QuestionType | undefined) {
+  questionStore.filters.question_type = type
+  questionStore.fetchList(true)
+}
 function selectSource(id: number | undefined) {
   questionStore.filters.source_id = id
   showSourcePicker.value = false
   questionStore.fetchList(true)
 }
-function selectType(type: QuestionType | undefined) {
-  questionStore.filters.question_type = type
-  showTypePicker.value = false
-  questionStore.fetchList(true)
-}
 function selectDifficulty(d: number | undefined) {
   questionStore.filters.difficulty = d
-  showDifficultyPicker.value = false
+  showDiffPicker.value = false
   questionStore.fetchList(true)
 }
 function clearFilters() {
@@ -137,36 +124,25 @@ function clearFilters() {
   questionStore.fetchList(true)
 }
 function closePickers() {
+  showDiffPicker.value = false
   showSourcePicker.value = false
-  showTypePicker.value = false
-  showDifficultyPicker.value = false
 }
 
-function goDetail(id: number) {
-  uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+function goDetail(id: number, index: number) {
+  questionStore.setCurrentIndex(index)
+  uni.navigateTo({ url: `/pages/detail/index?id=${id}&index=${index}&total=${total.value}` })
 }
 
-// 触底加载更多
-onReachBottom(() => {
-  questionStore.loadMore()
-})
+onReachBottom(() => questionStore.loadMore())
 
 onMounted(async () => {
-  // 读取首页传入的 type 参数（题型筛选）
+  attemptStore.init()
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1] as any
   const typeParam = currentPage?.options?.type as QuestionType | undefined
-  if (typeParam) {
-    questionStore.filters.question_type = typeParam
-  }
+  if (typeParam) questionStore.filters.question_type = typeParam
 
-  // 加载来源列表（容错：失败不阻塞列表加载）
-  try {
-    sources.value = await listSources()
-  } catch (e) {
-    sources.value = []
-  }
-
+  try { sources.value = await listSources() } catch {}
   await questionStore.fetchList(true)
 })
 </script>
@@ -177,85 +153,116 @@ onMounted(async () => {
   background: var(--bg-page, #f7f9fc);
 }
 
-/* 筛选区 */
-.filter-bar {
+/* chips 筛选栏 */
+.chips-bar {
+  background: var(--bg-card, #fff);
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  white-space: nowrap;
+}
+.chips-inner {
   display: flex;
-  align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: var(--bg-card, #fff);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
-.filter-item {
-  display: flex;
+.chip {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: var(--bg-secondary, #f0f2f5);
+  padding: 5px 14px;
   border-radius: 16px;
   font-size: 13px;
-  color: var(--text-primary, #2c3338);
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #f0f2f5);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.filter-item .arrow { font-size: 10px; color: var(--text-secondary, #999); }
-.filter-clear {
-  margin-left: auto;
-  font-size: 13px;
-  color: var(--primary-color, #1e3a5f);
+.chip.active {
+  background: var(--primary-color, #1e3a5f);
+  color: #fff;
 }
 
-/* 下拉选择 */
-.picker-dropdown {
-  position: fixed;
-  top: 52px;
-  left: 0;
-  right: 0;
-  background: var(--bg-card, #fff);
-  z-index: 9;
+/* 统计行 */
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-height: 300px;
-  overflow-y: auto;
+  background: var(--bg-card, #fff);
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  position: sticky;
+  top: 44px;
+  z-index: 9;
 }
-.picker-item {
-  padding: 10px 12px;
+.meta-count {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+.filter-pills {
+  display: flex;
+  gap: 6px;
+}
+.pill {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-card, #fff);
+}
+.pill.active {
+  color: var(--primary-color, #1e3a5f);
+  border-color: var(--primary-color, #1e3a5f);
+}
+.pill.clear {
+  color: #e24b4a;
+  border-color: #e24b4a;
+}
+
+/* 下拉 */
+.dropdown {
+  position: fixed;
+  top: 100px;
+  right: 12px;
+  background: var(--bg-card, #fff);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 20;
+  min-width: 120px;
+  overflow: hidden;
+}
+.drop-item {
+  padding: 10px 16px;
   font-size: 14px;
   color: var(--text-primary, #2c3338);
-  border-radius: 6px;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
 }
-.picker-item.active {
+.drop-item:last-child { border-bottom: none; }
+.drop-item.active {
   color: var(--primary-color, #1e3a5f);
   font-weight: 600;
-  background: var(--bg-primary-light, #e8f0fe);
+  background: var(--bg-secondary, #f0f2f5);
 }
-.picker-mask {
+
+.mask {
   position: fixed;
-  top: 52px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.2);
-  z-index: 8;
+  inset: 0;
+  background: rgba(0,0,0,0.1);
+  z-index: 19;
 }
 
-/* 列表内容 */
-.list-content { padding: 12px; }
-
-.skeleton-card {
-  height: 80px;
+/* 列表 */
+.list-content { padding: 10px 12px; }
+.skeleton {
+  height: 76px;
   background: var(--bg-secondary, #e8e8e8);
   border-radius: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   animation: pulse 1.5s infinite;
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
-
-.loading-more, .no-more {
+.tip {
   text-align: center;
   padding: 16px;
   font-size: 13px;

@@ -54,11 +54,26 @@
     "@dcloudio/uni-mp-xhs": "3.0.0-4080420251103001",
     "@dcloudio/uni-quickapp-webview": "3.0.0-4080420251103001",
     "@traptitech/markdown-it-katex": "^3",
+    "@vue/devtools-api": "^8.1.5",
+    "@vue/devtools-kit": "^8.1.5",
+    "@vue/devtools-shared": "^8.1.5",
+    "argparse": "^2.0.1",
+    "entities": "^8.0.0",
     "katex": "^0.16",
+    "linkify-it": "^5.0.1",
     "markdown-it": "^14",
-    "pinia": "^3.0.4",
+    "mdurl": "^2.0.0",
+    "pinia": "^2.3.1",
+    "punycode.js": "^2.3.1",
+    "uc.micro": "^2.1.0",
     "vue": "^3.4.21",
     "vue-i18n": "^9.1.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "core-js",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@dcloudio/types": "^3.4.8",

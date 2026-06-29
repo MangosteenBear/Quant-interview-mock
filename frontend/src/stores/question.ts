@@ -27,6 +27,7 @@ export const useQuestionStore = defineStore('question', () => {
   const detailLoading = ref(false)
   const attemptResult = ref<AttemptResponse | null>(null)
   const submitted = ref(false)
+  const currentIndex = ref(-1)
 
   // ---------- Actions ----------
   async function fetchList(reset = false) {
@@ -94,6 +95,10 @@ export const useQuestionStore = defineStore('question', () => {
     filters.difficulty = undefined
   }
 
+  function setCurrentIndex(index: number) {
+    currentIndex.value = index
+  }
+
   function clearDetail() {
     detail.value = null
     attemptResult.value = null
@@ -118,5 +123,7 @@ export const useQuestionStore = defineStore('question', () => {
     submitAnswer,
     resetFilters,
     clearDetail,
+    currentIndex,
+    setCurrentIndex,
   }
 })

@@ -13,4 +13,15 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: [
+      'markdown-it',
+      '@traptitech/markdown-it-katex',
+      'katex',
+      'linkify-it',
+      'mdurl',
+      'uc.micro',
+      'entities',
+    ],
+  },
 });
