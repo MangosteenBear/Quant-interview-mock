@@ -97,13 +97,18 @@
 | 3 | Heard on the Street (Crack) | 扫描版 | 136 | 129 | 0 | 0 |
 | 4 | Quantitative Primer (Bester) | 文字版 | 42 | 42 | 0 | 0 |
 | 5 | A Practical Guide (Zhou 96p) | 扫描版 | 130 | 129 | 0 | 0 |
-| — | **合计** | | **368** | **360** | | |
+| 6 | A Practical Guide (Zhou 188p lulu) | 扫描版 | 8 | 8 | 0 | 0 |
+| — | **合计（原题）** | | **376** | **368** | | |
+| — | **含变体（MCQ+FITB）** | | **1128** | **1065（发布）** | | |
+
+> ⑪ 题型转换已为所有原题生成 MCQ + FITB 变体，变体通过 `parent_question_id` 关联原题。
+> Zhou 188p 与 Zhou 96p 为同一本书不同扫描版，去重后仅补录 8 道新题。
 
 ### 待处理书籍
 
 | 书名 | 页数 | 状态 |
 |------|------|------|
-| Zhou lulu.com (2008) | 188p | ⏳ OCR 进行中 |
+| Zhou lulu.com (2008) | 188p | ✅ 已完成（+8题，去重42题） |
 | Probability & Stochastic Calculus | 326p | 待开始 |
 | Mark Joshi Q&A | 329p | 待开始 |
 | 150 Most FAQ | 220p | 待开始（最难，96MB 彩色扫描） |
