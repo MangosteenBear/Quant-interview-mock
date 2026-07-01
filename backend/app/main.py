@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.database import init_db
 
 # 日志配置
 logging.basicConfig(
@@ -68,17 +69,20 @@ from app.api.questions import router as questions_router  # noqa: E402
 from app.api.favorites import router as favorites_router  # noqa: E402
 from app.api.sources import router as sources_router  # noqa: E402
 from app.api.tags import router as tags_router  # noqa: E402
+from app.api.admin import router as admin_router  # noqa: E402
 
 app.include_router(questions_router)
 app.include_router(favorites_router)
 app.include_router(sources_router)
 app.include_router(tags_router)
+app.include_router(admin_router)
 
 
 @app.on_event("startup")
 async def startup():
     logger.info(f"{settings.APP_NAME} v{settings.APP_VERSION} 启动中...")
     logger.info(f"数据库: {settings.DATABASE_URL}")
+    await init_db()
 
 
 if __name__ == "__main__":

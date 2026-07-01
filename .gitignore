@@ -22,3 +22,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Pipeline output (large OCR/render files)
+output/
+
+# Claude Code local config
+.claude/

@@ -45,7 +45,13 @@
           </view>
         </view>
         <view v-else-if="detail.question_type === 'fill'" class="fill-input">
-          <input v-model="fillAnswer" class="input-box" placeholder="输入答案" confirm-type="done" />
+          <view v-if="fillBlanks.length > 1" class="multi-blank">
+            <view v-for="(_, i) in fillBlanks" :key="i" class="blank-row">
+              <text class="blank-label">第 {{ i + 1 }} 空</text>
+              <input v-model="fillBlanks[i]" class="input-box" :placeholder="`填写第 ${i + 1} 空`" confirm-type="done" />
+            </view>
+          </view>
+          <input v-else v-model="fillBlanks[0]" class="input-box" placeholder="输入答案" confirm-type="done" />
         </view>
         <view v-else class="short-input">
           <textarea v-model="shortAnswer" class="textarea-box" placeholder="输入你的解答（提交后展示参考答案）" :maxlength="-1" auto-height />
@@ -81,7 +87,31 @@
       <view v-if="detail.tags && detail.tags.length" class="tags-section">
         <text v-for="tag in detail.tags.filter(t => t.type === 'knowledge')" :key="tag.id" class="kp-tag">{{ tag.name }}</text>
       </view>
+
+      <!-- 举报入口 -->
+      <view class="report-section">
+        <text class="report-btn" @click="showReportSheet = true">⚑ 题目有问题</text>
+      </view>
     </template>
+
+    <!-- 举报弹窗 -->
+    <view v-if="showReportSheet" class="report-mask" @click.self="showReportSheet = false">
+      <view class="report-sheet">
+        <text class="report-sheet-title">反馈问题类型</text>
+        <view class="report-options">
+          <view v-for="opt in reportOptions" :key="opt.value"
+            class="report-option"
+            :class="{ selected: reportReason === opt.value }"
+            @click="reportReason = opt.value">
+            {{ opt.label }}
+          </view>
+        </view>
+        <button class="report-submit-btn" :disabled="!reportReason || reportSent" @click="submitReport">
+          {{ reportSent ? '✅ 已提交，感谢反馈' : '提交反馈' }}
+        </button>
+        <text class="report-cancel" @click="showReportSheet = false">取消</text>
+      </view>
+    </view>
 
     <!-- 底部翻题导航 -->
     <view class="bottom-nav">
@@ -112,12 +142,21 @@ const settingsStore = useSettingsStore()
 const attemptStore = useAttemptStore()
 
 const selectedOptions = ref<Set<string>>(new Set())
-const fillAnswer = ref('')
+const fillBlanks = ref<string[]>([''])
 const shortAnswer = ref('')
 const startTime = ref(0)
 const showExplanation = ref(false)
 const isFav = ref(false)
 const durationSec = ref(0)
+const showReportSheet = ref(false)
+const reportReason = ref('')
+const reportSent = ref(false)
+const reportOptions = [
+  { value: 'wrong_answer', label: '答案有误' },
+  { value: 'bad_options', label: '选项有问题' },
+  { value: 'garbled', label: '题目乱码/排版错误' },
+  { value: 'other', label: '其他问题' },
+]
 
 // 页面参数
 const currentId = ref(0)
@@ -139,7 +178,7 @@ const canSubmit = computed(() => {
   if (!detail.value) return false
   switch (detail.value.question_type) {
     case 'choice': return selectedOptions.value.size > 0
-    case 'fill': return fillAnswer.value.trim().length > 0
+    case 'fill': return fillBlanks.value.some(b => b.trim().length > 0)
     default: return shortAnswer.value.trim().length > 0
   }
 })
@@ -174,7 +213,7 @@ async function onSubmit() {
   let answer = ''
   switch (detail.value.question_type) {
     case 'choice': answer = Array.from(selectedOptions.value).sort().join(','); break
-    case 'fill': answer = fillAnswer.value.trim(); break
+    case 'fill': answer = fillBlanks.value.map(b => b.trim()).join('|'); break
     default: answer = shortAnswer.value.trim()
   }
   const dur = Date.now() - startTime.value
@@ -190,6 +229,19 @@ async function onToggleFav() {
   isFav.value = await favoriteStore.toggle(detail.value.id, settingsStore.deviceId)
 }
 
+async function submitReport() {
+  if (!detail.value || !reportReason.value) return
+  try {
+    await fetch(`/api/questions/${detail.value.id}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: settingsStore.deviceId, reason: reportReason.value }),
+    })
+    reportSent.value = true
+    setTimeout(() => { showReportSheet.value = false; reportSent.value = false; reportReason.value = '' }, 1500)
+  } catch (e) { /* silent */ }
+}
+
 function goBack() {
   uni.navigateBack()
 }
@@ -200,12 +252,21 @@ async function navigateTo(index: number) {
   currentIndex.value = index
   currentId.value = q.id
   selectedOptions.value = new Set()
-  fillAnswer.value = ''
+  fillBlanks.value = ['']
   shortAnswer.value = ''
   showExplanation.value = false
   durationSec.value = 0
+  showReportSheet.value = false
+  reportReason.value = ''
+  reportSent.value = false
   startTime.value = Date.now()
   await questionStore.fetchDetail(q.id)
+  // 根据 stem 中 ___N___ 数量初始化输入框
+  if (questionStore.detail?.question_type === 'fill') {
+    const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
+    const count = matches ? matches.length : 1
+    fillBlanks.value = Array(count).fill('')
+  }
   isFav.value = favoriteStore.isFavorited(q.id)
 }
 
@@ -228,6 +289,10 @@ onMounted(async () => {
 
   startTime.value = Date.now()
   await questionStore.fetchDetail(currentId.value)
+  if (questionStore.detail?.question_type === 'fill') {
+    const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
+    fillBlanks.value = Array(matches ? matches.length : 1).fill('')
+  }
 
   if (favoriteStore.favoritedIds.size === 0) {
     await favoriteStore.fetchList(settingsStore.deviceId, true)
@@ -331,6 +396,9 @@ onMounted(async () => {
   min-width: 24px;
 }
 .option-content { flex: 1; }
+.multi-blank { display: flex; flex-direction: column; gap: 10px; }
+.blank-row { display: flex; align-items: center; gap: 8px; }
+.blank-label { font-size: 13px; color: var(--text-secondary, #888); white-space: nowrap; min-width: 44px; }
 .fill-input .input-box,
 .short-input .textarea-box {
   width: 100%;
@@ -419,6 +487,77 @@ onMounted(async () => {
   background: #e8f0fe;
   color: var(--primary-color, #1e3a5f);
   border: 1px solid #c5d6f5;
+}
+
+/* 举报入口 */
+.report-section {
+  padding: 8px 16px 16px;
+  text-align: right;
+}
+.report-btn {
+  font-size: 12px;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+}
+.report-btn:hover { color: #e24b4a; }
+
+/* 举报弹窗 */
+.report-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+}
+.report-sheet {
+  background: var(--bg-card, #fff);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 16px 32px;
+  width: 100%;
+}
+.report-sheet-title {
+  font-size: 16px;
+  font-weight: 600;
+  display: block;
+  text-align: center;
+  margin-bottom: 16px;
+  color: var(--text-primary, #2c3338);
+}
+.report-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.report-option {
+  padding: 12px 16px;
+  border: 1.5px solid var(--border-color, #e0e0e0);
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text-primary, #2c3338);
+}
+.report-option.selected {
+  border-color: var(--primary-color, #1e3a5f);
+  background: #e8f0fe;
+  color: var(--primary-color, #1e3a5f);
+  font-weight: 500;
+}
+.report-submit-btn {
+  width: 100%;
+  height: 44px;
+  background: var(--primary-color, #1e3a5f);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.report-submit-btn[disabled] { opacity: 0.5; }
+.report-cancel {
+  display: block;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  padding: 4px;
 }
 
 /* 底部导航 */

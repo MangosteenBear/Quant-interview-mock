@@ -1,7 +1,7 @@
 # 数据库设计文档
 
 > 量化面试刷题题库平台 — 数据库表结构与关系设计
-> 版本：v1.0 | 更新日期：2026-06-29 | 对应代码：`backend/app/models/`
+> 版本：v1.3 | 更新日期：2026-07-01 | 对应代码：`backend/app/models/`
 
 ---
 
@@ -15,6 +15,9 @@ erDiagram
     questions ||--o{ solutions : "1:N CASCADE"
     questions ||--o{ attempt_logs : "1:N CASCADE"
     questions ||--o{ favorites : "1:N CASCADE"
+    questions ||--o{ question_reports : "1:N CASCADE"
+    questions ||--o{ question_variants : "1:N CASCADE（暂存表）"
+    questions }o--o| questions : "parent_question_id（自引用）"
     questions }o--o{ tags : "N:M via question_tags"
 
     sources {
@@ -36,6 +39,7 @@ erDiagram
         int book_page
         string book_chapter
         string status
+        int parent_question_id FK
         datetime ingested_at
         datetime updated_at
     }
@@ -77,6 +81,22 @@ erDiagram
         int question_id FK
         datetime created_at
     }
+    question_variants {
+        int id PK
+        int question_id FK
+        string variant_type
+        text stem_markdown
+        text content_json
+        datetime created_at
+    }
+    question_reports {
+        int id PK
+        string device_id
+        int question_id FK
+        string reason
+        text note
+        datetime created_at
+    }
 ```
 
 ---
@@ -110,10 +130,16 @@ erDiagram
 | `book_page` | Integer | 是 | — | 原书页码 |
 | `book_chapter` | String(200) | 是 | — | 原书章节 |
 | `status` | String(20) | 否 | `published` | 状态：`pending`/`reviewing`/`published`/`rejected` |
+| `parent_question_id` | Integer FK→questions | 是 | — | 衍生题关联原题 ID（MCQ/FITB → 原简答题，自引用） |
 | `ingested_at` | DateTime | 否 | `now()` | 入库时间 |
 | `updated_at` | DateTime | 否 | `now()` | 更新时间（`onupdate=now()`） |
 
 **关联**：→ source（1:1）、→ options（1:N CASCADE，按 label 排序）、→ solutions（1:N CASCADE）、↔ tags（N:M via question_tags）
+
+**`parent_question_id` 说明**：
+- `NULL` → 原始入库简答题
+- 非 NULL → 由 pipeline ⑪ 题型转换生成的 MCQ/FITB 衍生题
+- 衍生题的 `solutions` 中 version=1 存答案关键词，version=2（可选）存原题完整解析
 
 ### 2.3 `options` — 选择题选项表
 
@@ -172,6 +198,32 @@ erDiagram
 | `created_at` | DateTime | 否 | `now()` | 收藏时间 |
 
 **唯一约束**：`uq_device_question(device_id, question_id)` — 防止重复收藏
+
+### 2.9 `question_variants` — 题型变体暂存表
+
+> **⚠️ 中间表**：pipeline ⑪ 生成后由 ⑬ 迁移进 `questions` 表，正式入库后此表数据不再使用但保留以便溯源。
+
+| 字段 | 类型 | 可空 | 说明 |
+|------|------|------|------|
+| `id` | Integer | 否 | 主键 |
+| `question_id` | Integer FK→questions | 否 | 关联原题，级联删除 |
+| `variant_type` | String(10) | 否 | `mcq`（选择题）或 `fitb`（填空题） |
+| `stem_markdown` | Text | 是 | FITB 含 `___①___` 占位符；MCQ 为 null（沿用原题干） |
+| `content_json` | Text | 否 | MCQ：`{"options":[...]}` / FITB：`{"blanks":[...]}` |
+| `created_at` | DateTime | 否 | 创建时间 |
+
+**唯一约束**：`UNIQUE(question_id, variant_type)`
+
+### 2.10 `question_reports` — 用户举报表
+
+| 字段 | 类型 | 可空 | 说明 |
+|------|------|------|------|
+| `id` | Integer | 否 | 主键 |
+| `device_id` | String(64) | 否 | 匿名设备标识 |
+| `question_id` | Integer FK→questions | 否 | 被举报题目，级联删除 |
+| `reason` | String(20) | 否 | `wrong_answer` / `bad_options` / `garbled` / `other` |
+| `note` | Text | 是 | 用户补充说明 |
+| `created_at` | DateTime | 否 | 举报时间 |
 
 ---
 

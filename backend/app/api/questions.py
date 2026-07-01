@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_session, get_pagination
-from app.models import Question, Option, AttemptLog, Favorite
+from app.models import Question, Option, AttemptLog, Favorite, QuestionReport
 from app.schemas.common import PageResponse
 from app.schemas.question import (
     QuestionListItem,
@@ -155,20 +155,27 @@ async def submit_attempt(
     correct_answer = None
 
     if question.question_type == "choice":
-        # 选择题：对比用户答案与正确选项
         correct_opts = [o for o in question.options if o.is_correct]
-        correct_labels = ",".join(sorted(o.label for o in correct_opts))
-        correct_answer = correct_labels
-        # 用户答案可能是 "A" 或 "A,C" 等
-        user_labels = set(body.answer.strip().upper().replace("，", ",").split(","))
         correct_set = set(o.label for o in correct_opts)
+        user_labels = set(body.answer.strip().upper().replace("，", ",").split(","))
         is_correct = user_labels == correct_set
+        # 格式："正确答案 A：xxxx"（多选用 / 分隔）
+        correct_answer = "  /  ".join(
+            f"正确答案 {o.label}：{o.content_markdown}"
+            for o in sorted(correct_opts, key=lambda x: x.label)
+        )
     elif question.question_type == "fill":
-        # 填空题：简单去空格对比（生产可加更智能匹配）
         if question.solutions:
             ref = question.solutions[0].content_markdown.strip()
-            is_correct = body.answer.strip() == ref
             correct_answer = ref
+            # 多空填空：答案以 | 分隔，逐空比对（忽略大小写和首尾空格）
+            ref_parts = [p.strip().lower() for p in ref.split("|")]
+            user_parts = [p.strip().lower() for p in body.answer.strip().split("|")]
+            if len(ref_parts) == 1:
+                is_correct = user_parts[0] == ref_parts[0] if user_parts else False
+            else:
+                is_correct = (len(user_parts) == len(ref_parts) and
+                              all(u == r for u, r in zip(user_parts, ref_parts)))
         else:
             is_correct = False
     else:
@@ -186,8 +193,43 @@ async def submit_attempt(
     )
     db.add(log)
 
+    # 选择题解析优先用 version=2（原题完整解析）
+    explanation = None
+    if question.solutions:
+        full_sol = next((s for s in question.solutions if s.version == 2), None)
+        explanation = (full_sol or question.solutions[0]).content_markdown
+
     return AttemptResponse(
         is_correct=is_correct,
         correct_answer=correct_answer,
-        explanation=question.solutions[0].content_markdown if question.solutions else None,
+        explanation=explanation,
     )
+
+
+# ---------- 举报题目 ----------
+from pydantic import BaseModel as _BaseModel
+
+class ReportRequest(_BaseModel):
+    device_id: str
+    reason: str  # wrong_answer / bad_options / garbled / other
+    note: str | None = None
+
+
+@router.post("/{question_id}/report", summary="举报题目问题")
+async def report_question(
+    question_id: int,
+    body: ReportRequest,
+    db: AsyncSession = Depends(get_session),
+):
+    q = (await db.execute(select(Question).where(Question.id == question_id))).scalar_one_or_none()
+    if not q:
+        raise HTTPException(404, "题目不存在")
+    report = QuestionReport(
+        device_id=body.device_id,
+        question_id=question_id,
+        reason=body.reason,
+        note=body.note,
+    )
+    db.add(report)
+    await db.commit()
+    return {"ok": True}

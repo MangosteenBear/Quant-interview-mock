@@ -40,6 +40,10 @@ class Question(Base):
         String(20), default="published",
         comment="状态: pending/reviewing/published/rejected"
     )
+    parent_question_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("questions.id"), nullable=True,
+        comment="衍生题关联的原题 ID（MCQ/FITB → 原简答题）"
+    )
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), comment="入库时间"
     )

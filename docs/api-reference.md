@@ -1,7 +1,7 @@
 # API 参考文档
 
 > 量化面试刷题题库平台 — 后端 API 完整文档
-> 版本：v1.0 | 更新日期：2026-06-29 | 对应代码：`backend/app/api/`
+> 版本：v1.3 | 更新日期：2026-07-01 | 对应代码：`backend/app/api/`
 > 交互式文档：启动后端后访问 `http://localhost:8000/docs`（Swagger UI）
 
 ---
@@ -355,3 +355,83 @@
 |------|------|------|
 | `AttemptRequest` | device_id, answer, duration_ms? | 作答请求 |
 | `FavoriteRequest` | device_id, question_id | 收藏请求 |
+| `ReportRequest` | device_id, reason, note? | 举报请求 |
+
+---
+
+## 七、新增接口（v1.1+）
+
+### 7.1 举报题目
+
+```
+POST /api/questions/{question_id}/report
+```
+
+**请求体**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `device_id` | string | 是 | 匿名设备标识 |
+| `reason` | string | 是 | `wrong_answer` / `bad_options` / `garbled` / `other` |
+| `note` | string | 否 | 补充说明 |
+
+**响应**：`{"ok": true}`
+
+---
+
+### 7.2 管理后台批量状态更新
+
+```
+PATCH /admin/api/questions/batch-status
+```
+
+**请求体**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `ids` | int[] | 是 | 题目 ID 列表 |
+| `status` | string | 是 | `published` / `pending` / `reviewing` / `rejected` |
+
+**响应**：`{"ok": true, "updated": N}`
+
+---
+
+### 7.3 管理后台举报列表
+
+```
+GET  /admin/api/reports          # 最新 200 条举报
+DELETE /admin/api/reports/{id}   # 忽略（删除）举报
+```
+
+**举报列表响应项**：
+
+| 字段 | 说明 |
+|------|------|
+| `id` | 举报 ID |
+| `question_id` | 被举报题目 ID |
+| `stem` | 题干前 80 字 |
+| `reason` | 举报原因 |
+| `note` | 补充说明 |
+| `created_at` | 举报时间 |
+
+---
+
+### 7.4 选择题作答结果变更（v1.2）
+
+`POST /api/questions/{id}/attempt` 中选择题的 `correct_answer` 格式从 `"A"` 改为：
+
+```
+正确答案 A：选项内容全文
+```
+
+多选题用 `  /  ` 分隔每个正确选项。
+
+---
+
+### 7.5 填空题多空支持（v1.2）
+
+填空题（`question_type='fill'`）答案以 `|` 分隔多个空：
+
+- 提交：`answer = "3/8|6"` （第①空 3/8，第②空 6）
+- 批改：逐空比对，忽略大小写和首尾空格
+- 响应 `correct_answer`：同样 `|` 分隔

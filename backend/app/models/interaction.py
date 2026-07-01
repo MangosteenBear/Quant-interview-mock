@@ -42,3 +42,16 @@ class Favorite(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), comment="收藏时间"
     )
+
+
+class QuestionReport(Base):
+    """题目问题举报"""
+
+    __tablename__ = "question_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64), comment="匿名设备标识")
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(String(20), comment="原因: wrong_answer/bad_options/garbled/other")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True, comment="附加说明")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

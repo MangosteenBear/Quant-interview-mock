@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量化题库 · 管理后台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  [x-cloak] { display: none !important; }
+  .prose-sm { font-size: 0.875rem; line-height: 1.5; }
+  textarea { font-family: 'Menlo', 'Monaco', monospace; }
+  .difficulty-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800" x-data="app()" x-init="init()" x-cloak>
+
+<!-- 顶部导航 -->
+<nav class="bg-gray-900 text-white px-6 py-3 flex items-center gap-6 sticky top-0 z-50">
+  <span class="font-bold text-lg">📚 量化题库管理</span>
+  <button @click="view='questions'" :class="view==='questions'?'text-yellow-300':'text-gray-300 hover:text-white'" class="text-sm font-medium">题目管理</button>
+  <button @click="view='tags'; loadTags()" :class="view==='tags'?'text-yellow-300':'text-gray-300 hover:text-white'" class="text-sm font-medium">标签管理</button>
+  <button @click="view='reports'; loadReports()" :class="view==='reports'?'text-yellow-300':'text-gray-300 hover:text-white'" class="text-sm font-medium">
+    举报
+    <span x-show="stats.report_count > 0" class="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5" x-text="stats.report_count"></span>
+  </button>
+  <div class="ml-auto flex gap-4 text-sm text-gray-400">
+    <span>共 <b x-text="stats.total_questions" class="text-white"></b> 题</span>
+    <span>缺答案 <b x-text="stats.no_answer_count" class="text-yellow-300"></b> 题</span>
+    <span x-show="stats.report_count > 0">
+      举报 <b x-text="stats.report_count" class="text-red-400"></b> 条
+      <button @click="view='reports'" class="ml-1 underline text-red-400 hover:text-red-300">查看</button>
+    </span>
+  </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- 来源统计卡片 -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <template x-for="s in stats.by_source || []" :key="s.title">
+      <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:border-blue-400 transition"
+           @click="filters.source_id=sourceIdByTitle(s.title); loadQuestions()">
+        <div class="text-xs text-gray-400 mb-1 truncate" x-text="s.title"></div>
+        <div class="text-2xl font-bold text-blue-600" x-text="s.count"></div>
+      </div>
+    </template>
+    <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:border-gray-400 transition"
+         @click="filters.has_answer='false'; loadQuestions()">
+      <div class="text-xs text-gray-400 mb-1">缺少答案</div>
+      <div class="text-2xl font-bold text-orange-500" x-text="stats.no_answer_count"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 题目管理视图 ═══ -->
+  <div x-show="view==='questions'">
+
+    <!-- 过滤栏 -->
+    <div class="bg-white rounded-xl shadow-sm border p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">搜索</label>
+        <input x-model="filters.q" @keyup.enter="loadQuestions()" placeholder="关键词..." class="border rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-300">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">来源</label>
+        <select x-model="filters.source_id" @change="loadQuestions()" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+          <option value="">全部</option>
+          <template x-for="s in sources" :key="s.id">
+            <option :value="s.id" x-text="s.title"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">状态</label>
+        <select x-model="filters.status" @change="loadQuestions()" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+          <option value="">全部</option>
+          <option value="published">已发布</option>
+          <option value="pending">待审核</option>
+          <option value="reviewing">审核中</option>
+          <option value="rejected">已拒绝</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">题型</label>
+        <select x-model="filters.question_type" @change="loadQuestions()" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+          <option value="">全部</option>
+          <option value="short">简答</option>
+          <option value="choice">选择</option>
+          <option value="fill">填空</option>
+          <option value="proof">证明</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">答案</label>
+        <select x-model="filters.has_answer" @change="loadQuestions()" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+          <option value="">全部</option>
+          <option value="true">有答案</option>
+          <option value="false">缺答案</option>
+        </select>
+      </div>
+      <button @click="filters={q:'',source_id:'',status:'',question_type:'',has_answer:''}; loadQuestions()" class="text-xs text-gray-400 hover:text-gray-600 ml-auto">清除筛选</button>
+    </div>
+
+    <!-- 批量操作栏 -->
+    <div x-show="selected.size > 0" class="bg-blue-600 text-white rounded-xl px-4 py-3 mb-3 flex items-center gap-4 shadow-md">
+      <span class="text-sm font-medium">已选 <b x-text="selected.size"></b> 题</span>
+      <div class="flex gap-2 ml-auto">
+        <button @click="batchStatus('published')" class="bg-white text-green-700 px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-50">✅ 批量发布</button>
+        <button @click="batchStatus('pending')" class="bg-white text-yellow-700 px-3 py-1 rounded-lg text-xs font-medium hover:bg-yellow-50">⏸ 批量下架</button>
+        <button @click="selected.clear(); selected = new Set()" class="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-400">取消</button>
+      </div>
+    </div>
+
+    <!-- 题目表格 -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b">
+          <tr>
+            <th class="px-4 py-3 w-8">
+              <input type="checkbox" @change="toggleSelectAll($event)" class="rounded">
+            </th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-12">ID</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500">题干</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-20">来源</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-16">题型</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-16">难度</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-20">状态</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-500 w-16">答案</th>
+            <th class="px-4 py-3 w-36"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="q in questions" :key="q.id">
+            <tr class="border-b hover:bg-gray-50 cursor-pointer" :class="{'bg-blue-50': selected.has(q.id)}" @click="openEdit(q.id)">
+              <td class="px-4 py-3" @click.stop>
+                <input type="checkbox" :checked="selected.has(q.id)" @change="toggleSelect(q.id)" class="rounded">
+              </td>
+              <td class="px-4 py-3 text-gray-400" x-text="q.id"></td>
+              <td class="px-4 py-3 max-w-xs">
+                <div class="truncate" x-text="q.stem"></div>
+                <div x-show="q.tags.length" class="flex gap-1 mt-1">
+                  <template x-for="t in q.tags" :key="t.id">
+                    <span class="text-xs bg-blue-50 text-blue-600 rounded px-1.5 py-0.5" x-text="t.name"></span>
+                  </template>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-gray-400 text-xs truncate" x-text="q.source?.replace(/\s*\(.*?\)/g,'')?.slice(0,14)"></td>
+              <td class="px-4 py-3">
+                <span class="text-xs rounded px-1.5 py-0.5"
+                  :class="{
+                    'bg-purple-50 text-purple-700': q.type==='choice',
+                    'bg-teal-50 text-teal-700': q.type==='fill',
+                    'bg-gray-100 text-gray-600': q.type==='short'||q.type==='proof',
+                  }"
+                  x-text="{'choice':'选择','fill':'填空','short':'简答','proof':'证明'}[q.type]||q.type"></span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-0.5">
+                  <template x-for="i in 5" :key="i">
+                    <span class="difficulty-dot" :class="i<=(q.difficulty||0)?'bg-blue-500':'bg-gray-200'"></span>
+                  </template>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-xs rounded-full px-2 py-0.5"
+                  :class="{
+                    'bg-green-100 text-green-700': q.status==='published',
+                    'bg-yellow-100 text-yellow-700': q.status==='pending'||q.status==='reviewing',
+                    'bg-red-100 text-red-700': q.status==='rejected',
+                  }"
+                  x-text="{'published':'已发布','pending':'已下架','reviewing':'审核中','rejected':'已拒绝'}[q.status]||q.status"></span>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <span x-text="q.has_answer ? '✅' : '⚠️'"></span>
+              </td>
+              <td class="px-4 py-3 flex gap-2 items-center" @click.stop>
+                <button x-show="q.status==='published'"
+                  @click="quickStatus(q, 'pending')"
+                  class="text-yellow-600 hover:text-yellow-800 text-xs border border-yellow-300 rounded px-2 py-0.5 hover:bg-yellow-50">下架</button>
+                <button x-show="q.status!=='published'"
+                  @click="quickStatus(q, 'published')"
+                  class="text-green-600 hover:text-green-800 text-xs border border-green-300 rounded px-2 py-0.5 hover:bg-green-50">发布</button>
+                <button @click="deleteQuestion(q.id)" class="text-gray-300 hover:text-red-500 text-xs ml-1">🗑</button>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="!questions.length && !loading">
+            <td colspan="9" class="text-center py-12 text-gray-400">暂无数据</td>
+          </tr>
+          <tr x-show="loading">
+            <td colspan="9" class="text-center py-12 text-gray-400">加载中...</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- 分页 -->
+      <div class="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500">
+        <span>共 <b x-text="pagination.total"></b> 条</span>
+        <div class="flex gap-2">
+          <button @click="changePage(pagination.page-1)" :disabled="pagination.page<=1"
+                  class="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-50">上一页</button>
+          <span class="px-3 py-1" x-text="pagination.page + ' / ' + Math.ceil(pagination.total/pagination.page_size)"></span>
+          <button @click="changePage(pagination.page+1)" :disabled="pagination.page>=Math.ceil(pagination.total/pagination.page_size)"
+                  class="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-50">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 举报管理视图 ═══ -->
+  <div x-show="view==='reports'" class="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div class="flex items-center px-4 py-3 border-b bg-gray-50">
+      <h2 class="font-semibold text-gray-700">用户举报</h2>
+      <button @click="loadReports()" class="ml-auto text-xs text-gray-400 hover:text-gray-600">刷新</button>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b">
+        <tr>
+          <th class="text-left px-4 py-2 font-medium text-gray-500 w-12">ID</th>
+          <th class="text-left px-4 py-2 font-medium text-gray-500 w-16">题目</th>
+          <th class="text-left px-4 py-2 font-medium text-gray-500">题干预览</th>
+          <th class="text-left px-4 py-2 font-medium text-gray-500 w-28">问题类型</th>
+          <th class="text-left px-4 py-2 font-medium text-gray-500 w-32">时间</th>
+          <th class="px-4 py-2 w-32"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="r in reports" :key="r.id">
+          <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-400 text-xs" x-text="r.id"></td>
+            <td class="px-4 py-3">
+              <button @click="openEdit(r.question_id)" class="text-blue-600 hover:underline text-xs" x-text="'#'+r.question_id"></button>
+            </td>
+            <td class="px-4 py-3 text-xs text-gray-600 max-w-xs truncate" x-text="r.stem"></td>
+            <td class="px-4 py-3">
+              <span class="text-xs rounded-full px-2 py-0.5 bg-red-50 text-red-600"
+                x-text="{'wrong_answer':'答案有误','bad_options':'选项有问题','garbled':'乱码/排版','other':'其他'}[r.reason]||r.reason"></span>
+            </td>
+            <td class="px-4 py-3 text-xs text-gray-400" x-text="r.created_at?.slice(0,16)"></td>
+            <td class="px-4 py-3 flex gap-2" @click.stop>
+              <button @click="quickStatus({id:r.question_id,status:'published'}, 'pending')"
+                class="text-yellow-600 text-xs border border-yellow-300 rounded px-2 py-0.5 hover:bg-yellow-50">下架该题</button>
+              <button @click="dismissReport(r.id)"
+                class="text-gray-400 text-xs hover:text-gray-600">✕ 忽略</button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!reports.length">
+          <td colspan="6" class="text-center py-10 text-gray-400">暂无举报</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 标签管理视图 ═══ -->
+  <div x-show="view==='tags'" class="bg-white rounded-xl shadow-sm border p-6">
+    <div class="flex items-center gap-4 mb-6">
+      <h2 class="font-semibold text-lg">标签管理</h2>
+      <div class="flex gap-2 ml-auto">
+        <input x-model="newTag.name" placeholder="标签名" class="border rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none">
+        <select x-model="newTag.type" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+          <option value="topic">知识点</option>
+          <option value="difficulty">难度</option>
+          <option value="source">来源</option>
+          <option value="custom">自定义</option>
+        </select>
+        <button @click="createTag()" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-blue-700">添加</button>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <template x-for="t in allTags" :key="t.id">
+        <div class="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+          <span class="text-xs text-gray-400" x-text="t.type + ':'"></span>
+          <span class="text-sm font-medium" x-text="t.name"></span>
+          <button @click="deleteTag(t.id)" class="text-gray-300 hover:text-red-500 ml-1 text-xs">✕</button>
+        </div>
+      </template>
+      <div x-show="!allTags.length" class="text-gray-400 text-sm">暂无标签，请添加</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ 编辑抽屉 ═══ -->
+<div x-show="editDrawer.open" class="fixed inset-0 z-50 flex justify-end" @keydown.escape.window="editDrawer.open=false">
+  <div class="absolute inset-0 bg-black/30" @click="editDrawer.open=false"></div>
+  <div class="relative bg-white w-full max-w-2xl h-full overflow-y-auto shadow-2xl flex flex-col">
+    <!-- 抽屉头 -->
+    <div class="flex items-center gap-3 px-6 py-4 border-b sticky top-0 bg-white z-10">
+      <span class="font-semibold text-gray-700">编辑题目 #<span x-text="editDrawer.id"></span></span>
+      <div class="ml-auto flex gap-2">
+        <button @click="saveQuestion()" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-blue-700">保存</button>
+        <button @click="editDrawer.open=false" class="border px-4 py-1.5 rounded-lg text-sm hover:bg-gray-50">关闭</button>
+      </div>
+    </div>
+
+    <div class="p-6 flex flex-col gap-5 flex-1">
+
+      <!-- 元信息行 -->
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">题型</label>
+          <select x-model="editDrawer.question_type" class="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none">
+            <option value="short">简答 short</option>
+            <option value="fill">填空 fill</option>
+            <option value="choice">选择 choice</option>
+            <option value="proof">证明 proof</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">难度</label>
+          <select x-model="editDrawer.difficulty" class="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none">
+            <option value="">未设置</option>
+            <template x-for="i in 5" :key="i">
+              <option :value="i" x-text="'★'.repeat(i)+'☆'.repeat(5-i)+' ('+i+')'"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">状态</label>
+          <select x-model="editDrawer.status" class="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none">
+            <option value="published">published</option>
+            <option value="pending">pending</option>
+            <option value="reviewing">reviewing</option>
+            <option value="rejected">rejected</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 章节 -->
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">章节标注</label>
+        <input x-model="editDrawer.book_chapter" class="border rounded-lg px-3 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="如 Chapter 1 · Probability">
+      </div>
+
+      <!-- 题干 -->
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">题干 (Markdown / LaTeX)</label>
+        <textarea x-model="editDrawer.stem_markdown" rows="6"
+          class="border rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"></textarea>
+      </div>
+
+      <!-- 答案 -->
+      <div>
+        <label class="text-xs text-gray-500 block mb-1">答案 / 解析 (Markdown / LaTeX)</label>
+        <textarea x-model="editDrawer.solution" rows="8"
+          class="border rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"></textarea>
+      </div>
+
+      <!-- 标签 -->
+      <div>
+        <label class="text-xs text-gray-500 block mb-2">标签</label>
+        <div class="flex flex-wrap gap-2">
+          <template x-for="t in allTags" :key="t.id">
+            <button @click="toggleTag(t.id)"
+              class="text-xs rounded-full px-3 py-1 border transition"
+              :class="editDrawer.tag_ids.includes(t.id)
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'text-gray-600 border-gray-300 hover:border-blue-400'"
+              x-text="t.name"></button>
+          </template>
+          <span x-show="!allTags.length" class="text-xs text-gray-400">先在「标签管理」中添加标签</span>
+        </div>
+      </div>
+
+      <!-- 提示 -->
+      <div x-show="editDrawer.msg" class="text-sm rounded-lg px-4 py-2" :class="editDrawer.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'" x-text="editDrawer.msg"></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = '';  // same origin
+
+function app() {
+  return {
+    view: 'questions',
+    stats: {},
+    sources: [],
+    questions: [],
+    allTags: [],
+    loading: false,
+    selected: new Set(),
+    reports: [],
+    filters: { q: '', source_id: '', status: '', question_type: '', has_answer: '' },
+    pagination: { page: 1, page_size: 20, total: 0 },
+    editDrawer: {
+      open: false, id: null,
+      stem_markdown: '', question_type: 'short', difficulty: '', status: 'published',
+      book_chapter: '', solution: '', tag_ids: [], msg: '', ok: true,
+    },
+    newTag: { name: '', type: 'topic' },
+
+    async init() {
+      await Promise.all([this.loadStats(), this.loadSources(), this.loadTags()]);
+      await this.loadQuestions();
+    },
+
+    async loadStats() {
+      const r = await fetch(`${BASE}/admin/api/stats`);
+      this.stats = await r.json();
+    },
+
+    async loadSources() {
+      const r = await fetch(`${BASE}/admin/api/sources`);
+      this.sources = await r.json();
+    },
+
+    async loadTags() {
+      const r = await fetch(`${BASE}/admin/api/tags`);
+      this.allTags = await r.json();
+    },
+
+    async loadQuestions() {
+      this.loading = true;
+      const p = new URLSearchParams();
+      if (this.filters.q) p.set('q', this.filters.q);
+      if (this.filters.source_id) p.set('source_id', this.filters.source_id);
+      if (this.filters.status) p.set('status', this.filters.status);
+      if (this.filters.question_type) p.set('question_type', this.filters.question_type);
+      if (this.filters.has_answer !== '') p.set('has_answer', this.filters.has_answer);
+      p.set('page', this.pagination.page);
+      p.set('page_size', this.pagination.page_size);
+      try {
+        const r = await fetch(`${BASE}/admin/api/questions?${p}`);
+        const data = await r.json();
+        this.questions = data.items;
+        this.pagination.total = data.total;
+        this.selected = new Set();
+      } finally { this.loading = false; }
+    },
+
+    changePage(n) {
+      const maxPage = Math.ceil(this.pagination.total / this.pagination.page_size);
+      if (n < 1 || n > maxPage) return;
+      this.pagination.page = n;
+      this.loadQuestions();
+    },
+
+    sourceIdByTitle(title) {
+      return this.sources.find(s => s.title === title)?.id || '';
+    },
+
+    async openEdit(id) {
+      const r = await fetch(`${BASE}/admin/api/questions/${id}`);
+      const d = await r.json();
+      Object.assign(this.editDrawer, {
+        open: true, id, msg: '', ok: true,
+        stem_markdown: d.stem_markdown,
+        question_type: d.question_type || 'short',
+        difficulty: d.difficulty || '',
+        status: d.status,
+        book_chapter: d.book_chapter || '',
+        solution: d.solutions[0]?.content_markdown || '',
+        tag_ids: d.tags.map(t => t.id),
+      });
+    },
+
+    toggleTag(id) {
+      const idx = this.editDrawer.tag_ids.indexOf(id);
+      if (idx === -1) this.editDrawer.tag_ids.push(id);
+      else this.editDrawer.tag_ids.splice(idx, 1);
+    },
+
+    async saveQuestion() {
+      const id = this.editDrawer.id;
+      try {
+        await fetch(`${BASE}/admin/api/questions/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stem_markdown: this.editDrawer.stem_markdown,
+            question_type: this.editDrawer.question_type,
+            difficulty: this.editDrawer.difficulty || null,
+            status: this.editDrawer.status,
+            book_chapter: this.editDrawer.book_chapter || null,
+            tag_ids: this.editDrawer.tag_ids,
+          }),
+        });
+        if (this.editDrawer.solution !== undefined) {
+          await fetch(`${BASE}/admin/api/questions/${id}/solution`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content_markdown: this.editDrawer.solution }),
+          });
+        }
+        this.editDrawer.msg = '✅ 保存成功';
+        this.editDrawer.ok = true;
+        await this.loadQuestions();
+        await this.loadStats();
+      } catch(e) {
+        this.editDrawer.msg = '❌ 保存失败：' + e.message;
+        this.editDrawer.ok = false;
+      }
+    },
+
+    toggleSelect(id) {
+      const s = new Set(this.selected);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      this.selected = s;
+    },
+
+    toggleSelectAll(e) {
+      this.selected = e.target.checked ? new Set(this.questions.map(q => q.id)) : new Set();
+    },
+
+    async quickStatus(q, status) {
+      await fetch(`${BASE}/admin/api/questions/${q.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      q.status = status;
+      await this.loadStats();
+    },
+
+    async batchStatus(status) {
+      const ids = [...this.selected];
+      if (!ids.length) return;
+      await fetch(`${BASE}/admin/api/questions/batch-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status }),
+      });
+      this.selected = new Set();
+      await this.loadQuestions();
+      await this.loadStats();
+    },
+
+    async deleteQuestion(id) {
+      if (!confirm(`确认删除题目 #${id}？`)) return;
+      await fetch(`${BASE}/admin/api/questions/${id}`, { method: 'DELETE' });
+      await this.loadQuestions();
+      await this.loadStats();
+    },
+
+    async loadReports() {
+      const r = await fetch(`${BASE}/admin/api/reports`);
+      this.reports = await r.json();
+    },
+
+    async dismissReport(id) {
+      await fetch(`${BASE}/admin/api/reports/${id}`, { method: 'DELETE' });
+      this.reports = this.reports.filter(r => r.id !== id);
+      await this.loadStats();
+    },
+
+    async createTag() {
+      if (!this.newTag.name.trim()) return;
+      await fetch(`${BASE}/admin/api/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.newTag),
+      });
+      this.newTag.name = '';
+      await this.loadTags();
+    },
+
+    async deleteTag(id) {
+      if (!confirm('删除这个标签？')) return;
+      await fetch(`${BASE}/admin/api/tags/${id}`, { method: 'DELETE' });
+      await this.loadTags();
+    },
+  };
+}
+</script>
+
+</body>
+</html>

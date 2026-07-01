@@ -5,7 +5,7 @@
 from app.models.source import Source
 from app.models.question import Question, Option, Solution
 from app.models.tag import Tag, question_tags
-from app.models.interaction import AttemptLog, Favorite
+from app.models.interaction import AttemptLog, Favorite, QuestionReport
 
 __all__ = [
     "Source",
@@ -16,4 +16,5 @@ __all__ = [
     "question_tags",
     "AttemptLog",
     "Favorite",
+    "QuestionReport",
 ]

@@ -57,6 +57,7 @@ class QuestionListItem(BaseModel):
     book_chapter: str | None = None
     source: SourceBrief | None = None
     tags: list[TagBrief] = []
+    parent_question_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -75,6 +76,7 @@ class QuestionDetail(BaseModel):
     solutions: list[SolutionOut] = []
     tags: list[TagBrief] = []
     updated_at: datetime | None = None
+    parent_question_id: int | None = None
 
     model_config = {"from_attributes": True}
 

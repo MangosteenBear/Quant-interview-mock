@@ -1,62 +1,220 @@
 # 数据流水线 — PDF 处理 CLI
 
-> 影印 PDF 量化电子书 → 结构化题库的批量处理流水线
+> 扫描版 / 文字版量化面试 PDF → 结构化题库的批量处理流水线
 
-## ⚠️ 当前状态：脚手架阶段
+---
 
-**6 个命令 + `run` 全部为 TODO 占位**。仅 `logger.py`（JSON 结构化日志）与 CLI 框架可用。
+## 完整工作流
 
-## CLI 命令
+```
+┌─────────────────────────────┐
+│      ① PDF 原文件           │  扫描版 / 文字版
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│        ② render             │  逐页渲染，初步判定扫描/文字版
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│        ③ analyze            │  书籍结构分析 → book_profile.json
+│                             │  检测格式 / 估算题目数量
+└──────────────┬──────────────┘
+               │ 扫描版
+               ▼
+┌─────────────────────────────┐
+│         ④ ocr               │  PaddleOCR PP-OCRv6 → ocr_meta.json
+│   （文字版跳过此步骤）       │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐        ┌───────────────────────────┐
+│         ⑤ split             │──────▶ │       Splitter 路由        │
+│  按格式调用专用 splitter     │        │ primer  → primer_splitter  │
+└──────────────┬──────────────┘        │ heard-crack → crack_split  │
+               │                       │ wilmott-faq → faq_split    │
+               ▼                       │ zhou    → zhou_splitter    │
+┌─────────────────────────────┐        └───────────────────────────┘
+│          ⑥ link             │  stem ↔ answer 关联匹配
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│         ⑦ dedup             │  SimHash 64-bit，Hamming ≤ 3 去重
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│         ⑧ ingest            │  幂等写入 SQLite → 返回 source_id
+└──────────────┬──────────────┘
+               │
+               ▼
+╔═════════════════════════════╗
+║    ⑨ 全量质检（强制）        ║  quant-qa-reviewer 逐题扫描
+║                             ║  ⚠️  → status = 'review'
+║                             ║  ❌  → status = 'rejected'
+╚══════════════┤══════════════╝
+               │ ✅ ok
+               ▼
+┌─────────────────────────────┐
+│          ⑩ 打标             │  quant-tagger → topic + difficulty
+└──────────────┬──────────────┘
+               │
+               ▼
+╔═════════════════════════════╗
+║    ⑪ 题型转换（强制）        ║  quant-transformer 批量生成变体
+║                             ║  每题生成 MCQ（选择题）+ FITB（填空题）
+║                             ║  写入 question_variants 表（临时暂存）
+╚══════════════╤══════════════╝
+               │
+               ▼
+┌─────────────────────────────┐
+│     ⑫ 变体质检              │  quant-qa-reviewer 核验 MCQ/FITB
+│                             │  检查正确答案数学准确性、干扰项合理性
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│     ⑬ 变体迁移入库          │  将 question_variants 迁移进 questions 表
+│                             │  MCQ → question_type='choice' + options 表
+│                             │  FITB → question_type='fill' + solutions 表
+│                             │  parent_question_id 关联原题
+└──────────────┬──────────────┘
+               │
+               ▼
+         题库更新完成 ✓
+    （原题 + MCQ + FITB 混合呈现）
+```
+
+---
+
+## 当前入库状态
+
+| # | 书名 | 格式 | 题数 | 有答案 | 待审 | 拒绝 |
+|---|------|------|------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 文字版 | 60 | 60 | 0 | 0 |
+| 3 | Heard on the Street (Crack) | 扫描版 | 136 | 129 | 0 | 0 |
+| 4 | Quantitative Primer (Bester) | 文字版 | 42 | 42 | 0 | 0 |
+| 5 | A Practical Guide (Zhou 96p) | 扫描版 | 130 | 129 | 0 | 0 |
+| — | **合计** | | **368** | **360** | | |
+
+### 待处理书籍
+
+| 书名 | 页数 | 状态 |
+|------|------|------|
+| Zhou lulu.com (2008) | 188p | ⏳ OCR 进行中 |
+| Probability & Stochastic Calculus | 326p | 待开始 |
+| Mark Joshi Q&A | 329p | 待开始 |
+| 150 Most FAQ | 220p | 待开始（最难，96MB 彩色扫描） |
+
+---
+
+## 快速开始
 
 ```bash
-cd /workspace
-python -m pipeline --help                    # 查看帮助
-python -m pipeline render --pdf book.pdf     # 渲染 PDF
-python -m pipeline run --pdf book.pdf        # 完整流水线
+# 分步执行（标准流程）
+python -m pipeline render  --pdf book.pdf --out ./output/BookName
+python -m pipeline analyze --pages-dir ./output/BookName
+python -m pipeline ocr     --pages-dir ./output/BookName          # 扫描版专用
+python -m pipeline split   --ocr-dir ./output/BookName --out ./output/BookName/questions.json
+python -m pipeline link    --questions ./output/BookName/questions.json \
+                           --meta ./output/BookName/render_meta.json \
+                           --out ./output/BookName/questions_linked.json
+python -m pipeline dedup   --questions ./output/BookName/questions_linked.json \
+                           --out ./output/BookName/questions_deduped.json
+python -m pipeline ingest  --questions ./output/BookName/questions_deduped.json \
+                           --db-url sqlite:///./backend/quantquiz.db \
+                           --source-title "书名"
+# 然后在 Claude Code 中调用 quant-qa-reviewer agent（传入 source_id）
+# 最后调用 quant-tagger agent 打标
 ```
 
-| 命令 | 作用 | 关键参数 | 对应看板 | 状态 |
-|------|------|---------|---------|------|
-| `render` | PDF 渲染与扫描版判定 | `--pdf`(必填) `--dpi`(300) `--out` | A2 | TODO |
-| `ocr` | 版面分析 + 分流 OCR | `--pages-dir` `--out` | A3/A4 | TODO |
-| `split` | 题目边界识别 | `--ocr-dir` `--out` | A6 | TODO |
-| `link` | 答案关联 | `--questions` | A7 | TODO |
-| `dedup` | 去重（SimHash + MinHash） | `--questions` | A8 | TODO |
-| `ingest` | 入库 | `--questions` `--db-url` | A10 | TODO |
-| `run` | 完整流水线串联 | `--pdf` `--db-url` | — | TODO |
+---
 
-## 依赖
+## CLI 命令参考
 
-**已声明（轻量，可装）**：click / PyMuPDF / pdfplumber / opencv-python / numpy
+| 命令 | 作用 | 关键参数 |
+|------|------|---------|
+| `render` | PDF 渲染与扫描版判定，输出 `render_meta.json` | `--pdf` `--dpi`(300) `--out` |
+| `analyze` | 书籍结构分析，输出 `book_profile.json` | `--pages-dir` `--out` |
+| `ocr` | PaddleOCR 扫描版，产出 `ocr_meta.json` | `--pages-dir` `--out` |
+| `split` | 题目边界识别，按 `--format` 选 splitter | `--ocr-dir` `--out` `--format`(auto) |
+| `link` | 答案关联（内嵌 + 散布 + 集中三策略） | `--questions` `--meta` `--out` |
+| `dedup` | SimHash 64-bit 近重复检测 | `--questions` `--out` `--threshold`(3) |
+| `ingest` | 幂等入库（simhash 相同自动跳过） | `--questions` `--db-url` `--source-title` |
+| `run` | 完整流水线串联（不含质检/打标） | `--pdf` `--out-dir` `--db-url` `--source-title` |
 
-**注释待装（重依赖，执行时再启）**：
-- paddlepaddle + paddleocr（PP-OCRv4 + PP-StructureV3 + PP-FormulaNet-S）
-- simhash + datasketch（去重）
-- latex2mathml（LaTeX 校验）
+---
 
-## 日志
-
-`logger.py` 输出 JSON 结构化日志，支持附加字段：`source_file` / `page` / `question_id` / `stage`。
-
-## 后续实现路线
+## 中间产物
 
 ```
-A2(渲染) → A3(版面分析) → A4(分流OCR) → A5(LaTeX重建)
-→ A6(切题) → A7(答案关联) → A8(去重) → A9(审核后台) → A10(入库)
+output/BookName/
+  ├── page_0001.png … page_NNNN.png   ← render 产出
+  ├── render_meta.json                 ← 页面信息 + 扫描版判定
+  ├── ocr_meta.json                    ← OCR 文本（扫描版专用）
+  ├── book_profile.json                ← 格式 / 估算题数 / 推荐 splitter
+  ├── questions.json                   ← split 原始提取
+  ├── questions_linked.json            ← link 答案关联后
+  └── questions_deduped.json           ← dedup 去重后（入库用）
 ```
 
-## 未创建的模块文件（TODO）
+---
 
-PRD 规划但尚未创建的 7 个模块：
+## 专用 Splitter
 
-| 文件 | 职责 | TODO |
-|------|------|------|
-| `pdf_renderer.py` | PDF 渲染与扫描版判定 | A2 |
-| `layout_analyzer.py` | 版面分析 + 多栏重组 | A3 |
-| `ocr_dispatcher.py` | 分流 OCR（文字/公式/表格） | A4 |
-| `latex_builder.py` | LaTeX 重建与中间格式 | A5 |
-| `question_splitter.py` | 题目边界识别 | A6 |
-| `answer_linker.py` | 答案关联 | A7 |
-| `dedup.py` | 去重机制 | A8 |
+| Splitter | 适用格式 | 代表书 |
+|----------|----------|--------|
+| `quantitative_primer_splitter.py` | `Question N:` + 答案区跨页，含章节嵌入题 | Quantitative Primer (Bester) |
+| `faq_wilmott_splitter.py` | 完整问句作标题 + `Short answer` 段落 | FAQ Quant Interview (Wilmott) |
+| `heard_crack_splitter.py` | `Question N.M:` / `Answer N.M:`，题答分离，书末参考文献 | Heard on the Street (Crack) |
+| `zhou_splitter.py` | 2 列 PDF，`Solution:` 作 Q/A 锚点，Title-Case 行作题名 | A Practical Guide (Zhou) |
+| `question_splitter.py` | 通用：`N.` / `QN.` / `第N题` 等 6 种格式 | 其他 |
 
-详见 [产品设计文档 §三 数据流水线](../docs/product-design.md) 和 [架构文档](../docs/architecture.md)
+---
+
+## 质检与打标（⑨⑩ 步骤）
+
+### quant-qa-reviewer（全量质检）
+
+- **时机**：每次 ingest 后立即执行，**不可跳过**
+- **范围**：该 source_id 下**所有**题目（无数量上限）
+- **写回**：`⚠️ → status='review'`，`❌ → status='rejected'`，`✅` 不改动
+- **调用**：在 Claude Code 中传入 `db_path` + `source_id`
+
+### quant-tagger（批量打标）
+
+- **时机**：质检完成后
+- **输出**：`tags` + `question_tags` 表，每题 1-3 个 topic 标签 + 1 个 difficulty 标签
+- **标签体系**：概率论 / 随机过程 / 统计学 / 线性代数 / 微积分 / 数论与组合 / 逻辑推理 / 金融衍生品 / 固定收益 / 量化策略 / 编程算法 / 软性面试
+
+---
+
+## 已知局限
+
+- **Zhou 2列OCR**：`zhou_splitter.py` 用 `Solution:` 锚点提取，stem 含邻列噪声。当前 130 题中约 33% 为 `⚠️` 级别。
+- **数学公式**：PaddleOCR 输出文本近似（`sigma` 代替 σ），不影响质检判断，但无精确 LaTeX。如需精确公式需集成 PP-FormulaNet-S。
+- **大规模去重**：当前 SimHash O(n²) 对 1 万题内无压力，超出后可换 `datasketch` MinHash LSH。
+
+---
+
+## 模块文件
+
+| 文件 | 职责 |
+|------|------|
+| `pdf_renderer.py` | PDF 渲染与扫描版判定 |
+| `book_analyzer.py` | 书籍结构分析（格式检测 / 估题数 / 推荐 splitter） |
+| `ocr_dispatcher.py` | PaddleOCR 扫描版文字提取 |
+| `question_splitter.py` | 通用题目边界识别（6 种格式） |
+| `quantitative_primer_splitter.py` | Primer 专用解析器 |
+| `faq_wilmott_splitter.py` | FAQ Wilmott 专用解析器 |
+| `heard_crack_splitter.py` | Heard on the Street 专用解析器 |
+| `zhou_splitter.py` | Zhou 2列PDF 专用解析器 |
+| `answer_linker.py` | 答案关联（内嵌 / 散布 / 集中三策略） |
+| `dedup.py` | SimHash 64-bit 近重复检测 |
+| `ingest.py` | 幂等批量入库 |
+| `cli.py` | Click CLI 入口 |
+| `logger.py` | JSON 结构化日志 |
+
+**Agents**：`~/.claude/agents/quant-qa-reviewer.md`，`~/.claude/agents/quant-tagger.md`

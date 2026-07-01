@@ -43,6 +43,7 @@ export interface QuestionListItem {
   book_chapter: string | null
   source: SourceBrief | null
   tags: TagBrief[]
+  parent_question_id: number | null
 }
 
 /** 后端返回的完整详情（含 is_correct） */
@@ -65,6 +66,7 @@ export interface SafeQuestionDetail extends QuestionListItem {
   options: SafeOption[]
   solutions: SolutionOut[]
   updated_at: string | null
+  parent_question_id: number | null
 }
 
 // ---------- 通用响应 ----------
