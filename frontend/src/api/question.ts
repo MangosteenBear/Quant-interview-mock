@@ -57,3 +57,10 @@ export function submitAttempt(id: number, body: AttemptRequest) {
     data: body,
   })
 }
+
+/** 获取前后题 ID */
+export function getAdjacentQuestions(id: number) {
+  return request<{ prev_id: number | null; next_id: number | null }>({
+    url: `/questions/${id}/adjacent`,
+  })
+}

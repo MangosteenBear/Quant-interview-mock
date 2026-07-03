@@ -107,3 +107,9 @@ class FavoriteResponse(BaseModel):
     """收藏操作结果"""
     favorited: bool
     question_id: int
+
+
+class AdjacentResponse(BaseModel):
+    """前后题 ID（任一为 None 表示已到边界）"""
+    prev_id: int | None = None
+    next_id: int | None = None

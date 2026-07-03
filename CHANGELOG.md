@@ -4,6 +4,68 @@
 
 ---
 
+## v1.7 — 2026-07-03
+
+### 视觉大模型全面替换正则流水线（扫描版）
+
+**替换策略**：扫描版书籍全部弃用 PaddleOCR + 正则 splitter，改用 vision_lab 视觉版，旧版设为 `status='pending'`（不删除，可回滚）。
+
+| 操作 | 书名 | 旧 source | 新 source | 下架题数 | 并入题数（base） |
+|------|------|----------|----------|---------|----------------|
+| 重做 + 替换 | Heard on the Street | src3 (Crack) | src8 | 408 → pending | 147 short |
+| 重做 + 替换 | Quantitative Primer | src4 (Bester) | src9 | 126 → pending | 53 short |
+| 替换 | A Practical Guide (Zhou) | src5 + src6 | src7 | 414 → pending | 165 short |
+
+- Zhou 188p 视觉版已在 v1.6 抽取，本版正式并入主库并下架旧版
+- window_size 固定为 5（overlap 1），Batch API(-50%)，成本：Zhou ≈$1.5，Heard ≈$3，Primer ≈$1.5
+
+### 变体扩充（视觉 base 全量）
+
+为 src7/8/9 共 **365** 道 published short 题批量生成 MCQ + FITB 变体：
+- 新增 choice：365 道（src7=173，src8=147，src9=53；含 8 道修正数量差异）
+- 新增 fill：365 道
+- 正确答案 ABCD 分布：A:230 / B:182 / C:161 / D:168（无明显集中偏向）
+- 变体写入 `questions` 表，`parent_question_id` 关联原 short 题，`status='published'`
+
+**题库现状（发布）**：
+
+| source_id | 书名 | short | choice | fill | 小计 |
+|-----------|------|-------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 60 | 60 | 60 | 180 |
+| 7 | Zhou vision | 165 | 173 | 165 | 503 |
+| 8 | Heard vision | 147 | 147 | 147 | 441 |
+| 9 | Primer vision | 53 | 53 | 53 | 159 |
+| **合计** | | **425** | **433** | **425** | **1283** |
+
+> 旧正则版 src3/4/5/6 共 948 道题保留在库中（`status='pending'`），不参与展示，可随时回滚。
+
+---
+
+## v1.6 — 2026-07-02
+
+### 实验模块 vision_lab 调优
+- 默认 `window_size` 3→5(overlap 1):质检发现主流问题是超长解答跨过 3 页窗口被截断；5 页窗口能装下更长解答，且步长 4 比 size3 窗口更少、开销略降
+- Zhou 188p 全书质检 + 回填:175 题中 121 直接可用(69%)、加修可用 98%；真损坏仅约 4 道
+  - window=5 重抽问题页,修复 4 道:巧克力题(补回缺失答案)、futures>forward(283→1222 补全截断)、代码题、vol smile(跨页错配纠正)
+  - 大量「needs_review 截断」经 window=5 复验为**误报**(原答案本就完整)
+  - 影子库现状:published 121 / review 52 / rejected 2
+
+---
+
+## v1.5 — 2026-07-01
+
+### 实验性功能
+- 新增 `pipeline/vision_lab/` —— 基于 Claude 视觉大模型的实验性入库模块,与主 pipeline 物理隔离
+  - 整页图 → 结构化题目 JSON(滑窗 + Opus 4.8 + 结构化输出),绕开 PaddleOCR + 正则切题,解决扫描/双列书排版错乱与整本坍缩成十几题的问题
+  - 复用 render / dedup / ingest / quant-qa-reviewer,仅替换「视觉抽取 + 跨页合并」两步
+  - 入库写独立影子库 `output/vision_lab/quantquiz_vision.db`,主库 `quantquiz.db` 不受影响,用于 A/B 对比
+  - 支持 Batch API(-50%)、prompt caching、单本成本上限;产出 `extraction_report.md`(题数/置信度/成本/需复核清单)
+  - Zhou 188p 前 20 页 A/B 实测:视觉版 24–27 题 vs 正则版整本仅 8 题
+  - 成本调优:默认改为「省钱档」sonnet-4-6 + 关 thinking + effort low + 图1500px,较 Opus 档便宜 ~68%($0.32 vs $1.00/20页)且质量持平,全书 Batch ≈ $1.5
+- 主 pipeline 代码与数据零改动
+
+---
+
 ## v1.4 — 2026-07-01
 
 ### 数据入库

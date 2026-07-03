@@ -19,6 +19,7 @@ from app.schemas.question import (
     AttemptResponse,
     FavoriteRequest,
     FavoriteResponse,
+    AdjacentResponse,
 )
 
 router = APIRouter(prefix="/api/questions", tags=["题目"])
@@ -94,6 +95,23 @@ async def get_question(
     if not question:
         raise HTTPException(status_code=404, detail=f"题目 {question_id} 不存在")
     return question
+
+
+# ---------- 前后题 ----------
+@router.get("/{question_id}/adjacent", response_model=AdjacentResponse, summary="前后题 ID")
+async def get_adjacent(
+    question_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    prev_row = (await db.execute(
+        select(Question.id).where(Question.status == "published", Question.id < question_id)
+        .order_by(Question.id.desc()).limit(1)
+    )).scalar_one_or_none()
+    next_row = (await db.execute(
+        select(Question.id).where(Question.status == "published", Question.id > question_id)
+        .order_by(Question.id).limit(1)
+    )).scalar_one_or_none()
+    return AdjacentResponse(prev_id=prev_row, next_id=next_row)
 
 
 # ---------- 搜索 ----------

@@ -89,28 +89,35 @@
 
 ---
 
-## 当前入库状态
+## 当前入库状态（v1.7，2026-07-03）
 
-| # | 书名 | 格式 | 题数 | 有答案 | 待审 | 拒绝 |
-|---|------|------|------|--------|------|------|
-| 2 | FAQ Quant Interview (Wilmott) | 文字版 | 60 | 60 | 0 | 0 |
-| 3 | Heard on the Street (Crack) | 扫描版 | 136 | 129 | 0 | 0 |
-| 4 | Quantitative Primer (Bester) | 文字版 | 42 | 42 | 0 | 0 |
-| 5 | A Practical Guide (Zhou 96p) | 扫描版 | 130 | 129 | 0 | 0 |
-| 6 | A Practical Guide (Zhou 188p lulu) | 扫描版 | 8 | 8 | 0 | 0 |
-| — | **合计（原题）** | | **376** | **368** | | |
-| — | **含变体（MCQ+FITB）** | | **1128** | **1065（发布）** | | |
+> 扫描版书籍已全面切换至 vision_lab 视觉版（替换策略）。旧正则版保留为 `pending`，可回滚。
 
-> ⑪ 题型转换已为所有原题生成 MCQ + FITB 变体，变体通过 `parent_question_id` 关联原题。
-> Zhou 188p 与 Zhou 96p 为同一本书不同扫描版，去重后仅补录 8 道新题。
+### 已发布（含 MCQ + FITB 变体）
+
+| source_id | 书名 | 入库方式 | short | choice | fill | 合计 |
+|-----------|------|---------|-------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 原 pipeline（文字版） | 60 | 60 | 60 | **180** |
+| 7 | A Practical Guide (Zhou 188p vision) | vision_lab | 165 | 173 | 165 | **503** |
+| 8 | Heard on the Street [vision] | vision_lab | 147 | 147 | 147 | **441** |
+| 9 | Quantitative Primer [vision] | vision_lab | 53 | 53 | 53 | **159** |
+| **合计** | | | **425** | **433** | **425** | **1283** |
+
+### 已退役（status='pending'，不展示）
+
+| source_id | 书名 | 退役原因 |
+|-----------|------|---------|
+| 3 | Heard on the Street (Crack, 正则版) | 被 src8 视觉版替换 |
+| 4 | Quantitative Primer (Bester, 正则版) | 被 src9 视觉版替换 |
+| 5 | A Practical Guide (Zhou 96p, 正则版) | 被 src7 视觉版替换 |
+| 6 | A Practical Guide (Zhou 188p, 正则版) | 被 src7 视觉版替换 |
 
 ### 待处理书籍
 
 | 书名 | 页数 | 状态 |
 |------|------|------|
-| Zhou lulu.com (2008) | 188p | ✅ 已完成（+8题，去重42题） |
-| Probability & Stochastic Calculus | 326p | 待开始 |
-| Mark Joshi Q&A | 329p | 待开始 |
+| Probability & Stochastic Calculus | 326p | 待开始（vision_lab） |
+| Mark Joshi Q&A | 329p | 待开始（vision_lab） |
 | 150 Most FAQ | 220p | 待开始（最难，96MB 彩色扫描） |
 
 ---
@@ -223,3 +230,21 @@ output/BookName/
 | `logger.py` | JSON 结构化日志 |
 
 **Agents**：`~/.claude/agents/quant-qa-reviewer.md`，`~/.claude/agents/quant-tagger.md`
+
+---
+
+## 实验性功能 · vision_lab（视觉大模型入库）
+
+> 独立实验模块,与本主 pipeline 隔离——只新增、不修改现有代码,入库写独立影子库,主库不受影响。
+
+针对扫描 / 双列书「排版错乱」和「整本坍缩成十几题」的结构性问题,`vision_lab` 换一条路线:
+把整页图直接交给 Claude 视觉模型,一步完成 OCR + 版面理解 + 语义切题,绕开 PaddleOCR + 正则切题。
+它复用主 pipeline 的 `render` / `dedup` / `ingest` / `quant-qa-reviewer`,仅替换中间的
+「视觉抽取 + 跨页合并」。
+
+详见 [`vision_lab/README.md`](vision_lab/README.md)（含工作流图、成本、CLI 用法、A/B 对比方法）。
+
+```bash
+.venv/bin/pip install -r pipeline/vision_lab/requirements.txt
+.venv/bin/python -m pipeline.vision_lab run --book /path/to/book.pdf --pages 1-20
+```

@@ -8,7 +8,9 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
@@ -76,6 +78,13 @@ app.include_router(favorites_router)
 app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(admin_router)
+
+# 管理后台静态页
+_admin_html = Path(__file__).parent.parent / "admin" / "index.html"
+if _admin_html.exists():
+    @app.get("/admin", include_in_schema=False)
+    async def admin_page():
+        return FileResponse(_admin_html)
 
 
 @app.on_event("startup")

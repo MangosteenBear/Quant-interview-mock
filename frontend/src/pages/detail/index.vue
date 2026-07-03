@@ -135,6 +135,7 @@ import { useAttemptStore } from '@/stores/attempt'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import FormulaText from '@/components/FormulaText.vue'
 import DifficultyTag from '@/components/DifficultyTag.vue'
+import { getAdjacentQuestions } from '@/api/question'
 
 const questionStore = useQuestionStore()
 const favoriteStore = useFavoriteStore()
@@ -162,6 +163,8 @@ const reportOptions = [
 const currentId = ref(0)
 const currentIndex = ref(-1)
 const total = ref(0)
+const prevId = ref<number | null>(null)
+const nextId = ref<number | null>(null)
 
 const detail = computed(() => questionStore.detail)
 const detailLoading = computed(() => questionStore.detailLoading)
@@ -169,8 +172,14 @@ const submitted = computed(() => questionStore.submitted)
 const attemptResult = computed(() => questionStore.attemptResult)
 
 const indexLabel = computed(() => total.value > 0 && currentIndex.value >= 0 ? `${currentIndex.value + 1} / ${total.value}` : '')
-const hasPrev = computed(() => currentIndex.value > 0 && questionStore.list.length > 0)
-const hasNext = computed(() => currentIndex.value >= 0 && currentIndex.value < questionStore.list.length - 1)
+const hasPrev = computed(() => {
+  if (questionStore.list.length > 0) return currentIndex.value > 0
+  return prevId.value !== null
+})
+const hasNext = computed(() => {
+  if (questionStore.list.length > 0) return currentIndex.value >= 0 && currentIndex.value < questionStore.list.length - 1
+  return nextId.value !== null
+})
 
 const typeLabel = computed(() => detail.value ? QUESTION_TYPE_LABELS[detail.value.question_type] : '')
 
@@ -270,11 +279,38 @@ async function navigateTo(index: number) {
   isFav.value = favoriteStore.isFavorited(q.id)
 }
 
+async function navigateById(id: number) {
+  currentId.value = id
+  currentIndex.value = -1
+  selectedOptions.value = new Set()
+  fillBlanks.value = ['']
+  shortAnswer.value = ''
+  showExplanation.value = false
+  durationSec.value = 0
+  showReportSheet.value = false
+  reportReason.value = ''
+  reportSent.value = false
+  startTime.value = Date.now()
+  await questionStore.fetchDetail(id)
+  if (questionStore.detail?.question_type === 'fill') {
+    const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
+    fillBlanks.value = Array(matches ? matches.length : 1).fill('')
+  }
+  isFav.value = favoriteStore.isFavorited(id)
+  const adj = await getAdjacentQuestions(id)
+  prevId.value = adj.prev_id
+  nextId.value = adj.next_id
+}
+
 function goPrev() {
-  if (hasPrev.value) navigateTo(currentIndex.value - 1)
+  if (!hasPrev.value) return
+  if (questionStore.list.length > 0) navigateTo(currentIndex.value - 1)
+  else if (prevId.value) navigateById(prevId.value)
 }
 function goNext() {
-  if (hasNext.value) navigateTo(currentIndex.value + 1)
+  if (!hasNext.value) return
+  if (questionStore.list.length > 0) navigateTo(currentIndex.value + 1)
+  else if (nextId.value) navigateById(nextId.value)
 }
 
 onMounted(async () => {
@@ -298,6 +334,13 @@ onMounted(async () => {
     await favoriteStore.fetchList(settingsStore.deviceId, true)
   }
   isFav.value = favoriteStore.isFavorited(currentId.value)
+
+  // 当无列表上下文时（随机/每日/收藏入口），用 adjacent API 激活前后题按钮
+  if (questionStore.list.length === 0) {
+    const adj = await getAdjacentQuestions(currentId.value)
+    prevId.value = adj.prev_id
+    nextId.value = adj.next_id
+  }
 })
 </script>
 

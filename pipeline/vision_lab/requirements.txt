@@ -1,0 +1,5 @@
+# vision_lab 实验模块额外依赖（在主 pipeline 依赖之上）
+# 安装: .venv/bin/pip install -r pipeline/vision_lab/requirements.txt
+
+anthropic>=0.40.0     # Claude 视觉 + 结构化输出 + Batch API
+Pillow>=10.0.0        # 可选：发送前按长边降采样以控制 token/体积（缺失时发送原图）
