@@ -18,10 +18,13 @@
       </view>
     </scroll-view>
 
-    <!-- 统计行 + 难度筛选 -->
+    <!-- 统计行 + 筛选 pills -->
     <view class="meta-row">
       <text class="meta-count">{{ total }} 题 · 已做 {{ attemptedCount }}</text>
       <view class="filter-pills">
+        <view class="pill" :class="{ active: !!filters.tag_name }" @click="showTagPicker = !showTagPicker">
+          {{ filters.tag_name ? filters.tag_name.slice(0, 4) : '知识点' }} ▾
+        </view>
         <view class="pill" :class="{ active: !!filters.difficulty }" @click="showDiffPicker = !showDiffPicker">
           {{ filters.difficulty ? `P${filters.difficulty}` : '难度' }} ▾
         </view>
@@ -30,6 +33,12 @@
         </view>
         <view v-if="hasFilter" class="pill clear" @click="clearFilters">清除</view>
       </view>
+    </view>
+
+    <!-- 知识点下拉 -->
+    <view v-if="showTagPicker" class="dropdown dropdown-left">
+      <view class="drop-item" :class="{ active: !filters.tag_name }" @click="selectTag(undefined)">全部</view>
+      <view v-for="t in availableTags" :key="t.id" class="drop-item" :class="{ active: filters.tag_name === t.name }" @click="selectTag(t.name)">{{ t.name }}</view>
     </view>
 
     <!-- 难度下拉 -->
@@ -47,7 +56,7 @@
     </view>
 
     <!-- 遮罩 -->
-    <view v-if="showDiffPicker || showSourcePicker" class="mask" @click="closePickers" />
+    <view v-if="showDiffPicker || showSourcePicker || showTagPicker" class="mask" @click="closePickers" />
 
     <!-- 列表 -->
     <view class="list-content">
@@ -73,12 +82,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { onReachBottom } from '@dcloudio/uni-app'
+import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useQuestionStore } from '@/stores/question'
 import { useAttemptStore } from '@/stores/attempt'
 import { listSources } from '@/api/source'
+import { listTags } from '@/api/tag'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
-import type { SourceBrief, QuestionType } from '@/types/api'
+import type { SourceBrief, TagBrief, QuestionType } from '@/types/api'
 import QuestionCard from '@/components/QuestionCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -92,13 +102,15 @@ const hasMore = computed(() => questionStore.hasMore)
 const filters = computed(() => questionStore.filters)
 
 const sources = ref<SourceBrief[]>([])
+const availableTags = ref<TagBrief[]>([])
 const showDiffPicker = ref(false)
 const showSourcePicker = ref(false)
+const showTagPicker = ref(false)
 const typeOptions = QUESTION_TYPE_LABELS
 
 const attemptedCount = computed(() => attemptStore.attemptedCount)
 
-const hasFilter = computed(() => filters.value.source_id || filters.value.question_type || filters.value.difficulty)
+const hasFilter = computed(() => filters.value.source_id || filters.value.question_type || filters.value.difficulty || filters.value.tag_name)
 
 const currentSourceName = computed(() => {
   const s = sources.value.find(s => s.id === filters.value.source_id)
@@ -119,6 +131,11 @@ function selectDifficulty(d: number | undefined) {
   showDiffPicker.value = false
   questionStore.fetchList(true)
 }
+function selectTag(name: string | undefined) {
+  questionStore.filters.tag_name = name
+  showTagPicker.value = false
+  questionStore.fetchList(true)
+}
 function clearFilters() {
   questionStore.resetFilters()
   questionStore.fetchList(true)
@@ -126,6 +143,7 @@ function clearFilters() {
 function closePickers() {
   showDiffPicker.value = false
   showSourcePicker.value = false
+  showTagPicker.value = false
 }
 
 function goDetail(id: number, index: number) {
@@ -135,6 +153,11 @@ function goDetail(id: number, index: number) {
 
 onReachBottom(() => questionStore.loadMore())
 
+onShow(async () => {
+  // 首页点知识点标签后 switchTab 到此，需要重新拉取
+  await questionStore.fetchList(true)
+})
+
 onMounted(async () => {
   attemptStore.init()
   const pages = getCurrentPages()
@@ -142,7 +165,11 @@ onMounted(async () => {
   const typeParam = currentPage?.options?.type as QuestionType | undefined
   if (typeParam) questionStore.filters.question_type = typeParam
 
-  try { sources.value = await listSources() } catch {}
+  try {
+    const [srcs, tags] = await Promise.all([listSources(), listTags('topic')])
+    sources.value = srcs
+    availableTags.value = tags
+  } catch {}
   await questionStore.fetchList(true)
 })
 </script>
@@ -228,6 +255,13 @@ onMounted(async () => {
   z-index: 20;
   min-width: 120px;
   overflow: hidden;
+}
+.dropdown-left {
+  right: auto;
+  left: 12px;
+  min-width: 100px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 .drop-item {
   padding: 10px 16px;

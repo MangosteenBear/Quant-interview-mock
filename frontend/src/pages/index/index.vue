@@ -68,10 +68,12 @@ import { ref, computed, onMounted } from 'vue'
 import { listQuestions } from '@/api/question'
 import { listTags } from '@/api/tag'
 import { useAttemptStore } from '@/stores/attempt'
+import { useQuestionStore } from '@/stores/question'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import type { QuestionListItem, TagBrief } from '@/types/api'
 
 const attemptStore = useAttemptStore()
+const questionStore = useQuestionStore()
 const totalQuestions = ref(0)
 const allQuestions = ref<QuestionListItem[]>([])
 const topTags = ref<TagBrief[]>([])
@@ -112,6 +114,8 @@ function goList() {
 }
 
 function goListWithTag(tagName: string) {
+  questionStore.resetFilters()
+  questionStore.filters.tag_name = tagName
   uni.switchTab({ url: '/pages/list/index' })
 }
 
@@ -142,7 +146,7 @@ onMounted(async () => {
   try {
     const [res, tags] = await Promise.all([
       listQuestions({ page: 1, page_size: 100 }),
-      listTags('knowledge'),
+      listTags('topic'),
     ])
     totalQuestions.value = res.total
     allQuestions.value = res.items

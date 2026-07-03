@@ -15,6 +15,7 @@
         />
       </view>
       <text class="type-tag">{{ typeLabel }}</text>
+      <text v-if="topicTag" class="topic-tag">{{ topicTag }}</text>
       <view v-if="showFavorite" class="fav-star" @click.stop="onToggleFav">
         <text :class="{ active: isFavorited }">{{ isFavorited ? '★' : '☆' }}</text>
       </view>
@@ -66,6 +67,11 @@ const plainStem = computed(() =>
 )
 
 const typeLabel = computed(() => QUESTION_TYPE_LABELS[props.question.question_type] || props.question.question_type)
+
+const topicTag = computed(() => {
+  const t = props.question.tags?.find(t => t.type === 'topic')
+  return t?.name ?? null
+})
 
 function onClick() { emit('click', props.question.id) }
 function onToggleFav() { emit('toggleFav', props.question.id) }
@@ -138,6 +144,13 @@ function onToggleFav() { emit('toggleFav', props.question.id) }
   font-size: 11px;
   color: var(--text-secondary, #6b7280);
   background: var(--bg-secondary, #f0f2f5);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.topic-tag {
+  font-size: 11px;
+  color: #1e3a5f;
+  background: rgba(30, 58, 95, 0.08);
   padding: 2px 7px;
   border-radius: 4px;
 }

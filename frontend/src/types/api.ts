@@ -110,6 +110,7 @@ export interface QuestionFilter {
   book_chapter?: string
   question_type?: QuestionType
   difficulty?: number
+  tag_name?: string
   status?: string
   page?: number
   page_size?: number

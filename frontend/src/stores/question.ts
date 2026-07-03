@@ -21,6 +21,7 @@ export const useQuestionStore = defineStore('question', () => {
     book_chapter: undefined,
     question_type: undefined,
     difficulty: undefined,
+    tag_name: undefined,
   })
 
   const detail = ref<SafeQuestionDetail | null>(null)
@@ -93,6 +94,7 @@ export const useQuestionStore = defineStore('question', () => {
     filters.book_chapter = undefined
     filters.question_type = undefined
     filters.difficulty = undefined
+    filters.tag_name = undefined
   }
 
   function setCurrentIndex(index: number) {

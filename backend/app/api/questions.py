@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_session, get_pagination
-from app.models import Question, Option, AttemptLog, Favorite, QuestionReport
+from app.models import Question, Option, AttemptLog, Favorite, QuestionReport, Tag, question_tags
 from app.schemas.common import PageResponse
 from app.schemas.question import (
     QuestionListItem,
@@ -32,6 +32,7 @@ async def list_questions(
     book_chapter: str | None = Query(None, description="按章节筛选"),
     question_type: str | None = Query(None, description="按题型筛选: choice/fill/short/proof"),
     difficulty: int | None = Query(None, ge=1, le=5, description="按难度筛选 1-5"),
+    tag_name: str | None = Query(None, description="按知识点标签筛选"),
     status: str = Query("published", description="状态筛选，默认只看已发布"),
     db: AsyncSession = Depends(get_session),
     pagination: dict = Depends(get_pagination),
@@ -49,10 +50,26 @@ async def list_questions(
     if status:
         conditions.append(Question.status == status)
 
+    def apply_tag_filter(stmt):
+        if tag_name:
+            # IDs directly tagged with this tag
+            direct = (
+                select(question_tags.c.question_id)
+                .join(Tag, Tag.id == question_tags.c.tag_id)
+                .where(Tag.name == tag_name)
+            )
+            # Also include variants whose parent is tagged
+            stmt = stmt.where(
+                (Question.id.in_(direct)) |
+                (Question.parent_question_id.in_(direct))
+            )
+        return stmt
+
     # 查询总数
     count_stmt = select(func.count(Question.id))
     for cond in conditions:
         count_stmt = count_stmt.where(cond)
+    count_stmt = apply_tag_filter(count_stmt)
     total = (await db.execute(count_stmt)).scalar() or 0
 
     # 查询列表
@@ -62,6 +79,7 @@ async def list_questions(
     )
     for cond in conditions:
         stmt = stmt.where(cond)
+    stmt = apply_tag_filter(stmt)
     stmt = stmt.order_by(Question.id).offset(pagination["offset"]).limit(pagination["page_size"])
     result = await db.execute(stmt)
     items = result.scalars().all()
