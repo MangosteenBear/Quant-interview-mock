@@ -180,13 +180,21 @@ const detailLoading = computed(() => questionStore.detailLoading)
 const submitted = computed(() => questionStore.submitted)
 const attemptResult = computed(() => questionStore.attemptResult)
 
-const indexLabel = computed(() => total.value > 0 && currentIndex.value >= 0 ? `${currentIndex.value + 1} / ${total.value}` : '')
+const indexLabel = computed(() => {
+  if (currentIndex.value < 0) return ''
+  const t = questionStore.list.length > 0 ? questionStore.total : total.value
+  return t > 0 ? `${currentIndex.value + 1} / ${t}` : ''
+})
 const hasPrev = computed(() => {
   if (questionStore.list.length > 0) return currentIndex.value > 0
   return prevId.value !== null
 })
 const hasNext = computed(() => {
-  if (questionStore.list.length > 0) return currentIndex.value >= 0 && currentIndex.value < questionStore.list.length - 1
+  if (questionStore.list.length > 0) {
+    return currentIndex.value >= 0 && (
+      currentIndex.value < questionStore.list.length - 1 || questionStore.hasMore
+    )
+  }
   return nextId.value !== null
 })
 
@@ -353,10 +361,17 @@ function goPrev() {
   if (questionStore.list.length > 0) navigateTo(currentIndex.value - 1)
   else if (prevId.value) navigateById(prevId.value)
 }
-function goNext() {
+async function goNext() {
   if (!hasNext.value) return
-  if (questionStore.list.length > 0) navigateTo(currentIndex.value + 1)
-  else if (nextId.value) navigateById(nextId.value)
+  if (questionStore.list.length > 0) {
+    const nextIndex = currentIndex.value + 1
+    if (nextIndex >= questionStore.list.length && questionStore.hasMore) {
+      await questionStore.loadMore()
+    }
+    navigateTo(nextIndex)
+  } else if (nextId.value) {
+    navigateById(nextId.value)
+  }
 }
 
 onMounted(async () => {

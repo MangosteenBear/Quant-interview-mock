@@ -3,6 +3,7 @@
 8 个端点中的 6 个：列表/详情/搜索/作答/收藏切换/收藏列表
 """
 import math
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, delete
@@ -140,7 +141,6 @@ async def search_questions(
     pagination: dict = Depends(get_pagination),
 ):
     # 按空格拆词，每词独立 LIKE AND 匹配（支持多词搜索）
-    from sqlalchemy import or_
     tokens = [t.strip() for t in q.split() if t.strip()]
     conditions = [Question.status == "published"]
     for token in tokens:
@@ -217,14 +217,12 @@ async def submit_attempt(
 
             def normalize_blank(s: str) -> str:
                 """去序号前缀(1./①)、strip、lower"""
-                import re
                 s = re.sub(r'^\d+\.\s*', '', s.strip())  # "1. answer" → "answer"
                 s = re.sub(r'^[①②③④⑤⑥⑦⑧⑨]\s*', '', s)
                 return s.strip().lower()
 
             def accepted_vals(ref_part: str):
                 """将 'a lot (lots)' 展开为 ['a lot', 'lots']"""
-                import re
                 base = normalize_blank(ref_part)
                 alts = [base]
                 m = re.search(r'\(([^)]+)\)', base)
@@ -271,7 +269,6 @@ async def submit_attempt(
 
     # 填空题展示答案时去掉序号前缀，方便用户对照
     if question.question_type == "fill" and correct_answer:
-        import re
         correct_answer = re.sub(r'(?m)^\d+\.\s*', '', correct_answer).strip()
 
     return AttemptResponse(
