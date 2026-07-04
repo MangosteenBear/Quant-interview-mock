@@ -28,3 +28,8 @@ output/
 
 # Claude Code local config
 .claude/
+
+# SQLite WAL & backups
+*.db-shm
+*.db-wal
+*.db.bak*
