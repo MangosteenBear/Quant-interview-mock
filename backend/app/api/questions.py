@@ -202,16 +202,42 @@ async def submit_attempt(
         )
     elif question.question_type == "fill":
         if question.solutions:
-            ref = question.solutions[0].content_markdown.strip()
-            correct_answer = ref
-            # 多空填空：答案以 | 分隔，逐空比对（忽略大小写和首尾空格）
-            ref_parts = [p.strip().lower() for p in ref.split("|")]
-            user_parts = [p.strip().lower() for p in body.answer.strip().split("|")]
+            # 优先用 version=1（短答案），无则用第一条
+            short_sol = next((s for s in question.solutions if s.version == 1), None)
+            ref_raw = (short_sol or question.solutions[0]).content_markdown.strip()
+            correct_answer = ref_raw
+
+            def normalize_blank(s: str) -> str:
+                """去序号前缀(1./①)、strip、lower"""
+                import re
+                s = re.sub(r'^\d+\.\s*', '', s.strip())  # "1. answer" → "answer"
+                s = re.sub(r'^[①②③④⑤⑥⑦⑧⑨]\s*', '', s)
+                return s.strip().lower()
+
+            def accepted_vals(ref_part: str):
+                """将 'a lot (lots)' 展开为 ['a lot', 'lots']"""
+                import re
+                base = normalize_blank(ref_part)
+                alts = [base]
+                m = re.search(r'\(([^)]+)\)', base)
+                if m:
+                    # 括号内容作为备选
+                    alts.append(m.group(1).strip().lower())
+                    alts.append(re.sub(r'\s*\([^)]+\)', '', base).strip())
+                return alts
+
+            ref_parts = [p for p in ref_raw.split("|")]
+            user_parts = [p.strip() for p in body.answer.strip().split("|")]
+
+            def blank_match(user: str, ref: str) -> bool:
+                u = normalize_blank(user)
+                return u in accepted_vals(ref)
+
             if len(ref_parts) == 1:
-                is_correct = user_parts[0] == ref_parts[0] if user_parts else False
+                is_correct = blank_match(user_parts[0], ref_parts[0]) if user_parts else False
             else:
                 is_correct = (len(user_parts) == len(ref_parts) and
-                              all(u == r for u, r in zip(user_parts, ref_parts)))
+                              all(blank_match(u, r) for u, r in zip(user_parts, ref_parts)))
         else:
             is_correct = False
     else:
@@ -229,11 +255,16 @@ async def submit_attempt(
     )
     db.add(log)
 
-    # 选择题解析优先用 version=2（原题完整解析）
+    # 解析优先用 version=2（原题完整解析）
     explanation = None
     if question.solutions:
         full_sol = next((s for s in question.solutions if s.version == 2), None)
         explanation = (full_sol or question.solutions[0]).content_markdown
+
+    # 填空题展示答案时去掉序号前缀，方便用户对照
+    if question.question_type == "fill" and correct_answer:
+        import re
+        correct_answer = re.sub(r'(?m)^\d+\.\s*', '', correct_answer).strip()
 
     return AttemptResponse(
         is_correct=is_correct,

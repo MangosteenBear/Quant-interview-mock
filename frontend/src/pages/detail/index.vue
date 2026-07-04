@@ -31,32 +31,41 @@
       </view>
 
       <!-- 作答区 -->
-      <view v-if="!submitted" class="answer-section">
+      <view class="answer-section">
+        <!-- 选择题：提交前可点击，提交后只读+对错高亮 -->
         <view v-if="detail.question_type === 'choice'" class="options">
           <view
             v-for="opt in detail.options"
             :key="opt.id"
             class="option-item"
-            :class="{ selected: selectedOptions.has(opt.label) }"
-            @click="toggleOption(opt.label)"
+            :class="optionClass(opt.label)"
+            @click="submitted ? undefined : toggleOption(opt.label)"
           >
             <text class="option-label">{{ opt.label }}</text>
             <FormulaText class="option-content" :content="opt.content_markdown" />
+            <text v-if="submitted && isCorrectOption(opt.label)" class="opt-badge opt-correct">✓</text>
+            <text v-else-if="submitted && selectedOptions.has(opt.label) && !isCorrectOption(opt.label)" class="opt-badge opt-wrong">✗</text>
           </view>
         </view>
+        <!-- 填空题 -->
         <view v-else-if="detail.question_type === 'fill'" class="fill-input">
           <view v-if="fillBlanks.length > 1" class="multi-blank">
             <view v-for="(_, i) in fillBlanks" :key="i" class="blank-row">
               <text class="blank-label">第 {{ i + 1 }} 空</text>
-              <input v-model="fillBlanks[i]" class="input-box" :placeholder="`填写第 ${i + 1} 空`" confirm-type="done" />
+              <input v-model="fillBlanks[i]" class="input-box" :disabled="submitted" :placeholder="`填写第 ${i + 1} 空`" confirm-type="done" />
             </view>
           </view>
-          <input v-else v-model="fillBlanks[0]" class="input-box" placeholder="输入答案" confirm-type="done" />
+          <input v-else v-model="fillBlanks[0]" class="input-box" :disabled="submitted" placeholder="输入答案" confirm-type="done" />
         </view>
+        <!-- 简答/证明 -->
         <view v-else class="short-input">
-          <textarea v-model="shortAnswer" class="textarea-box" placeholder="输入你的解答（提交后展示参考答案）" :maxlength="-1" auto-height />
+          <textarea v-if="!submitted" v-model="shortAnswer" class="textarea-box" placeholder="输入解答思路（选填）" :maxlength="-1" auto-height />
         </view>
-        <button class="submit-btn" :disabled="!canSubmit" @click="onSubmit">提交作答</button>
+        <!-- 提交按钮 -->
+        <view v-if="!submitted" class="submit-row">
+          <button class="submit-btn" :disabled="!canSubmit" @click="onSubmit">提交作答</button>
+          <button v-if="detail.question_type === 'short'" class="peek-btn" @click="onPeek">直接看答案</button>
+        </view>
       </view>
 
       <!-- 判定结果 -->
@@ -85,7 +94,7 @@
 
       <!-- 知识点标签 -->
       <view v-if="detail.tags && detail.tags.length" class="tags-section">
-        <text v-for="tag in detail.tags.filter(t => t.type === 'knowledge')" :key="tag.id" class="kp-tag">{{ tag.name }}</text>
+        <text v-for="tag in detail.tags.filter(t => t.type === 'topic')" :key="tag.id" class="kp-tag">{{ tag.name }}</text>
       </view>
 
       <!-- 举报入口 -->
@@ -192,6 +201,27 @@ const canSubmit = computed(() => {
   }
 })
 
+// 获取选择题正确答案集合（提交后从 attemptResult 中的 correct_answer 字段反推，
+// 但更可靠的是在提交时记录）
+const correctOptionLabels = ref<Set<string>>(new Set())
+
+function isCorrectOption(label: string) {
+  return correctOptionLabels.value.has(label)
+}
+
+function optionClass(label: string) {
+  if (!submitted.value) {
+    return { selected: selectedOptions.value.has(label) }
+  }
+  const isSelected = selectedOptions.value.has(label)
+  const isCorrect = correctOptionLabels.value.has(label)
+  return {
+    'opt-revealed-correct': isCorrect,
+    'opt-revealed-wrong': isSelected && !isCorrect,
+    'selected': isSelected,
+  }
+}
+
 const resultClass = computed(() => {
   if (!attemptResult.value) return ''
   if (attemptResult.value.is_correct === true) return 'correct'
@@ -231,6 +261,20 @@ async function onSubmit() {
   if (res && res.is_correct !== null) {
     attemptStore.record(detail.value.id, res.is_correct === true)
   }
+  // 从 correct_answer 中解析正确选项标签 (格式: "正确答案 A：xxx  /  正确答案 B：xxx")
+  if (detail.value.question_type === 'choice' && res?.correct_answer) {
+    const matches = res.correct_answer.matchAll(/正确答案\s+([A-D])：/g)
+    correctOptionLabels.value = new Set([...matches].map(m => m[1]))
+  }
+}
+
+async function onPeek() {
+  if (!detail.value) return
+  // 以空字符串提交，仅触发"查看答案"流程（is_correct 为 null）
+  const dur = Date.now() - startTime.value
+  durationSec.value = 0
+  const res = await questionStore.submitAnswer('', dur, settingsStore.deviceId)
+  // 简答题 peek 不记录对错
 }
 
 async function onToggleFav() {
@@ -261,6 +305,7 @@ async function navigateTo(index: number) {
   currentIndex.value = index
   currentId.value = q.id
   selectedOptions.value = new Set()
+  correctOptionLabels.value = new Set()
   fillBlanks.value = ['']
   shortAnswer.value = ''
   showExplanation.value = false
@@ -283,6 +328,7 @@ async function navigateById(id: number) {
   currentId.value = id
   currentIndex.value = -1
   selectedOptions.value = new Set()
+  correctOptionLabels.value = new Set()
   fillBlanks.value = ['']
   shortAnswer.value = ''
   showExplanation.value = false
@@ -431,6 +477,38 @@ onMounted(async () => {
 .option-item.selected {
   border-color: var(--primary-color, #1e3a5f);
   background: #e8f0fe;
+}
+.option-item.opt-revealed-correct {
+  border-color: #1d9e75;
+  background: #e8f9f3;
+}
+.option-item.opt-revealed-wrong {
+  border-color: #e24b4a;
+  background: #fdf0f0;
+}
+.opt-badge {
+  font-size: 16px;
+  font-weight: 700;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.opt-badge.opt-correct { color: #1d9e75; }
+.opt-badge.opt-wrong { color: #e24b4a; }
+.submit-row {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+.submit-row .submit-btn { flex: 2; margin-top: 0; }
+.peek-btn {
+  flex: 1;
+  height: 44px;
+  line-height: 44px;
+  background: var(--bg-secondary, #f0f2f5);
+  color: var(--text-primary, #2c3338);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
 }
 .option-label {
   font-weight: 600;
