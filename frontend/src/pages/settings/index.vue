@@ -29,6 +29,19 @@
       </view>
     </view>
 
+    <!-- 数据管理 -->
+    <view class="settings-group">
+      <text class="group-title">数据管理</text>
+      <view class="settings-item">
+        <text class="item-label">已做题目</text>
+        <text class="item-value">{{ attemptedCount }} 道</text>
+      </view>
+      <view class="settings-item danger" @click="confirmReset">
+        <text class="item-label danger-text">重置做题记录</text>
+        <text class="item-arrow">→</text>
+      </view>
+    </view>
+
     <!-- 关于 -->
     <view class="settings-group">
       <text class="group-title">关于</text>
@@ -45,10 +58,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useSettingsStore, type FontSize } from '@/stores/settings'
+import { useAttemptStore } from '@/stores/attempt'
 
 const settings = useSettingsStore()
+const attemptStore = useAttemptStore()
+
+const attemptedCount = computed(() => attemptStore.attemptedCount)
 
 const fontOptions = [
   { value: 'small' as FontSize, label: '小', size: '14px' },
@@ -64,9 +81,25 @@ function onSetFontSize(size: FontSize) {
   settings.setFontSize(size)
 }
 
+function confirmReset() {
+  uni.showModal({
+    title: '重置做题记录',
+    content: '清除后所有题目变为"未做"状态，收藏不受影响。确认？',
+    confirmText: '确认重置',
+    confirmColor: '#e24b4a',
+    success(res) {
+      if (res.confirm) {
+        attemptStore.reset()
+        uni.showToast({ title: '已重置', icon: 'success' })
+      }
+    },
+  })
+}
+
 onMounted(() => {
   settings.initDeviceId()
   settings.applyTheme()
+  attemptStore.init()
 })
 </script>
 
@@ -133,4 +166,7 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-secondary, #6b7280);
 }
+.settings-item.danger { cursor: pointer; }
+.danger-text { color: #e24b4a; }
+.item-arrow { font-size: 14px; color: var(--text-secondary, #ccc); }
 </style>

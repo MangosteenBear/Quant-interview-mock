@@ -101,6 +101,17 @@ export const useQuestionStore = defineStore('question', () => {
     currentIndex.value = index
   }
 
+  function peekAnswer() {
+    if (!detail.value) return
+    const sol = detail.value.solutions?.find((s: any) => s.version === 2) ?? detail.value.solutions?.[0]
+    attemptResult.value = {
+      is_correct: null,
+      correct_answer: null,
+      explanation: sol?.content_markdown ?? null,
+    }
+    submitted.value = true
+  }
+
   function setSearchResults(items: QuestionListItem[], totalCount: number) {
     list.value = items
     total.value = totalCount
@@ -136,5 +147,6 @@ export const useQuestionStore = defineStore('question', () => {
     currentIndex,
     setCurrentIndex,
     setSearchResults,
+    peekAnswer,
   }
 })

@@ -28,18 +28,23 @@
 import { ref, computed, onMounted } from 'vue'
 import { useFavoriteStore } from '@/stores/favorite'
 import { useSettingsStore } from '@/stores/settings'
+import { useQuestionStore } from '@/stores/question'
 import QuestionCard from '@/components/QuestionCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const favoriteStore = useFavoriteStore()
 const settingsStore = useSettingsStore()
+const questionStore = useQuestionStore()
 
 const list = computed(() => favoriteStore.list)
 const total = computed(() => favoriteStore.total)
 const loading = computed(() => favoriteStore.loading)
 
 function goDetail(id: number) {
-  uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+  const index = favoriteStore.list.findIndex(q => q.id === id)
+  questionStore.setSearchResults(favoriteStore.list, favoriteStore.total)
+  questionStore.setCurrentIndex(index)
+  uni.navigateTo({ url: `/pages/detail/index?id=${id}&index=${index}&total=${favoriteStore.total}` })
 }
 
 async function onRemoveFav(id: number) {

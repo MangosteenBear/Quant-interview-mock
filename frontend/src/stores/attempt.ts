@@ -45,11 +45,21 @@ export const useAttemptStore = defineStore('attempt', () => {
     } catch {}
   }
 
+  function reset() {
+    records.value = {}
+    streak.value = 0
+    try {
+      uni.removeStorageSync('attempt_records')
+      uni.removeStorageSync('streak_count')
+      uni.removeStorageSync('streak_last_day')
+    } catch {}
+  }
+
   function loadStreak() {
     try {
       streak.value = parseInt(uni.getStorageSync('streak_count') || '0', 10)
     } catch {}
   }
 
-  return { records, init, record, getStatus, attemptedCount, correctCount, streak, loadStreak }
+  return { records, init, record, getStatus, attemptedCount, correctCount, streak, loadStreak, reset }
 })

@@ -278,11 +278,8 @@ async function onSubmit() {
 
 async function onPeek() {
   if (!detail.value) return
-  // 以空字符串提交，仅触发"查看答案"流程（is_correct 为 null）
-  const dur = Date.now() - startTime.value
-  durationSec.value = 0
-  const res = await questionStore.submitAnswer('', dur, settingsStore.deviceId)
-  // 简答题 peek 不记录对错
+  // 直接获取详情页已有的解析，不写 AttemptLog
+  questionStore.peekAnswer()
 }
 
 async function onToggleFav() {
