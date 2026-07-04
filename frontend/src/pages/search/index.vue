@@ -41,10 +41,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { searchQuestions } from '@/api/question'
+import { useQuestionStore } from '@/stores/question'
 import type { QuestionListItem } from '@/types/api'
 import QuestionCard from '@/components/QuestionCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
+const questionStore = useQuestionStore()
 const keyword = ref('')
 const results = ref<QuestionListItem[]>([])
 const total = ref(0)
@@ -70,9 +72,10 @@ async function onSearch() {
   loading.value = true
   searched.value = true
   try {
-    const res = await searchQuestions({ q, page: 1, page_size: 50 })
+    const res = await searchQuestions({ q, page: 1, page_size: 100 })
     results.value = res.items
     total.value = res.total
+    questionStore.setSearchResults(res.items, res.total)
   } finally {
     loading.value = false
   }
@@ -85,7 +88,9 @@ function clearSearch() {
 }
 
 function goDetail(id: number) {
-  uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+  const index = results.value.findIndex(q => q.id === id)
+  questionStore.setCurrentIndex(index)
+  uni.navigateTo({ url: `/pages/detail/index?id=${id}&index=${index}&total=${total.value}` })
 }
 </script>
 
