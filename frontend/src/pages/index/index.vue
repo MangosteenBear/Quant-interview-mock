@@ -36,6 +36,23 @@
       <text class="recommend-btn">开始练习 →</text>
     </view>
 
+
+    <!-- 做题统计 -->
+    <view v-if="statsRows.length" class="stats-section">
+      <text class="section-title">做题分布</text>
+      <view class="stats-grid">
+        <view v-for="row in statsRows" :key="row.label" class="stats-row">
+          <text class="stats-label">{{ row.label }}</text>
+          <view class="stats-bar-wrap">
+            <view class="stats-bar-bg">
+              <view class="stats-bar-fill" :style="{ width: row.pct + '%' }" />
+            </view>
+          </view>
+          <text class="stats-num">{{ row.correct }}/{{ row.total }}</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 按知识点 -->
     <text class="section-title">按知识点</text>
     <view class="cat-grid">
@@ -66,6 +83,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { listQuestions } from '@/api/question'
+import { getStats } from '@/api/stats'
+import { useSettingsStore } from '@/stores/settings'
 import { listTags } from '@/api/tag'
 import { useAttemptStore } from '@/stores/attempt'
 import { useQuestionStore } from '@/stores/question'
@@ -74,9 +93,25 @@ import type { QuestionListItem, TagBrief } from '@/types/api'
 
 const attemptStore = useAttemptStore()
 const questionStore = useQuestionStore()
+const settingsStore = useSettingsStore()
 const totalQuestions = ref(0)
 const allQuestions = ref<QuestionListItem[]>([])
 const topTags = ref<TagBrief[]>([])
+const statsData = ref<{ by_type: Record<string, {total:number;correct:number}> } | null>(null)
+
+const TYPE_LABEL_MAP: Record<string, string> = { short: '简答', choice: '选择', fill: '填空', proof: '证明' }
+const statsRows = computed(() => {
+  if (!statsData.value) return []
+  return Object.entries(statsData.value.by_type)
+    .filter(([, v]) => v.total > 0)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([type, v]) => ({
+      label: TYPE_LABEL_MAP[type] || type,
+      total: v.total,
+      correct: v.correct,
+      pct: Math.round((v.correct / v.total) * 100),
+    }))
+})
 
 const attemptedCount = computed(() => attemptStore.attemptedCount)
 const correctCount = computed(() => attemptStore.correctCount)
@@ -151,6 +186,10 @@ onMounted(async () => {
     totalQuestions.value = res.total
     allQuestions.value = res.items
     topTags.value = tags.slice(0, 4)
+  } catch {}
+  try {
+    settingsStore.initDeviceId()
+    statsData.value = await getStats(settingsStore.deviceId)
   } catch {}
 })
 </script>
@@ -299,4 +338,48 @@ onMounted(async () => {
 }
 .quick-icon { font-size: 22px; }
 .quick-text { font-size: 12px; color: var(--text-primary, #2c3338); }
+.stats-section {
+  margin-bottom: 24px;
+}
+.stats-grid {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 4px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+}
+.stats-row:last-child { border-bottom: none; }
+.stats-label {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  width: 32px;
+  flex-shrink: 0;
+}
+.stats-bar-wrap { flex: 1; }
+.stats-bar-bg {
+  height: 6px;
+  background: var(--bg-secondary, #f0f2f5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stats-bar-fill {
+  height: 100%;
+  background: #1d9e75;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.stats-num {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 </style>

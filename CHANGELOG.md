@@ -4,6 +4,78 @@
 
 ---
 
+## v2.0 — 2026-07-03
+
+### 新书入库：150 Most Frequently Asked Questions
+
+- vision_lab 抽取（220p 彩色扫描，900px 降分辨率绕开 Batch 256MB 限制），$1.01
+- 质检发现系统性重复（99 道题被抽取两遍），清理后保留 146 published / 48 review / 94 rejected
+- 并入主库 source_id=12，生成变体（并发 20 线程）
+- 变体：short 194 + choice 190 + fill 190 = **574 题**
+- 修复 src10/11/12 options 表未写入的问题（补全所有选项），并均匀化 ABCD 分布
+
+### 所有待处理书籍全部完成
+
+**题库现状（发布）**：
+
+| source_id | 书名 | short | choice | fill | 小计 |
+|-----------|------|-------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 60 | 60 | 60 | 180 |
+| 7 | Zhou vision | 165 | 173 | 165 | 503 |
+| 8 | Heard vision | 147 | 147 | 147 | 441 |
+| 9 | Primer vision | 53 | 53 | 53 | 159 |
+| 10 | Probability & Stochastic Calculus [vision] | 271 | 272 | 269 | 812 |
+| 11 | Mark Joshi Q&A [vision] | 426 | 424 | 419 | 1269 |
+| 12 | 150 Most FAQ [vision] | 194 | 190 | 190 | 574 |
+| **合计** | | **1316** | **1319** | **1303** | **3938** |
+
+---
+
+## v1.9 — 2026-07-03
+
+### 新书入库：Mark Joshi Q&A
+
+- vision_lab 抽取（329p 扫描版，省钱档+Batch）→ 452 题原始，$2.01
+- 质检：206 published / 225 review（无答案/引用图表等）/ 21 rejected
+- 并入主库 source_id=11，生成变体（并发 20 线程）
+- 变体：short 426 + choice 424 + fill 419 = **1269 题**
+
+**题库现状（发布）**：
+
+| source_id | 书名 | short | choice | fill | 小计 |
+|-----------|------|-------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 60 | 60 | 60 | 180 |
+| 7 | Zhou vision | 165 | 173 | 165 | 503 |
+| 8 | Heard vision | 147 | 147 | 147 | 441 |
+| 9 | Primer vision | 53 | 53 | 53 | 159 |
+| 10 | Probability & Stochastic Calculus [vision] | 271 | 272 | 269 | 812 |
+| 11 | Mark Joshi Q&A [vision] | 426 | 424 | 419 | 1269 |
+| **合计** | | **1122** | **1129** | **1113** | **3364** |
+
+---
+
+## v1.8 — 2026-07-03
+
+### 新书入库：Probability & Stochastic Calculus
+
+- vision_lab 抽取（326p 扫描版，省钱档+Batch）→ 278 题原始，$1.98
+- 质检：138 published / 138 review（无答案，书籍题目与解答分章节）/ 2 rejected
+- 并入主库 source_id=10，生成变体
+- 变体：short 271 + choice 272 + fill 269 = **812 题**
+
+**题库现状（发布）**：
+
+| source_id | 书名 | short | choice | fill | 小计 |
+|-----------|------|-------|--------|------|------|
+| 2 | FAQ Quant Interview (Wilmott) | 60 | 60 | 60 | 180 |
+| 7 | Zhou vision | 165 | 173 | 165 | 503 |
+| 8 | Heard vision | 147 | 147 | 147 | 441 |
+| 9 | Primer vision | 53 | 53 | 53 | 159 |
+| 10 | Probability & Stochastic Calculus [vision] | 271 | 272 | 269 | 812 |
+| **合计** | | **696** | **705** | **694** | **2095** |
+
+---
+
 ## v1.7 — 2026-07-03
 
 ### 视觉大模型全面替换正则流水线（扫描版）

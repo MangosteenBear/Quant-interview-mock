@@ -101,7 +101,10 @@
 | 7 | A Practical Guide (Zhou 188p vision) | vision_lab | 165 | 173 | 165 | **503** |
 | 8 | Heard on the Street [vision] | vision_lab | 147 | 147 | 147 | **441** |
 | 9 | Quantitative Primer [vision] | vision_lab | 53 | 53 | 53 | **159** |
-| **合计** | | | **425** | **433** | **425** | **1283** |
+| 10 | Probability & Stochastic Calculus [vision] | vision_lab | 271 | 272 | 269 | **812** |
+| 11 | Mark Joshi Q&A [vision] | vision_lab | 426 | 424 | 419 | **1269** |
+| 12 | 150 Most FAQ [vision] | vision_lab | 194 | 190 | 190 | **574** |
+| **合计** | | | **1316** | **1319** | **1303** | **3938** |
 
 ### 已退役（status='pending'，不展示）
 
@@ -116,9 +119,9 @@
 
 | 书名 | 页数 | 状态 |
 |------|------|------|
-| Probability & Stochastic Calculus | 326p | 待开始（vision_lab） |
-| Mark Joshi Q&A | 329p | 待开始（vision_lab） |
-| 150 Most FAQ | 220p | 待开始（最难，96MB 彩色扫描） |
+| Probability & Stochastic Calculus | 326p | ✅ 已完成（src10，vision_lab） |
+| Mark Joshi Q&A | 329p | ✅ 已完成（src11，vision_lab） |
+| 150 Most FAQ | 220p | ✅ 已完成（src12，vision_lab，900px 降分辨率） |
 
 ---
 

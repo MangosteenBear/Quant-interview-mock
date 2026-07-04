@@ -10,8 +10,12 @@
 import base64
 import io
 import json
+import os
 from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parents[2] / ".env")
 
 from pipeline.logger import logger
 from pipeline.vision_lab.vision_config import DEFAULT, VisionConfig

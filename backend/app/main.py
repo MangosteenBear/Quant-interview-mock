@@ -71,13 +71,15 @@ from app.api.questions import router as questions_router  # noqa: E402
 from app.api.favorites import router as favorites_router  # noqa: E402
 from app.api.sources import router as sources_router  # noqa: E402
 from app.api.tags import router as tags_router  # noqa: E402
-from app.api.admin import router as admin_router  # noqa: E402
+from app.api.admin import router as admin_router
+from app.api.stats import router as stats_router  # noqa: E402
 
 app.include_router(questions_router)
 app.include_router(favorites_router)
 app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(admin_router)
+app.include_router(stats_router)
 
 # 管理后台静态页
 _admin_html = Path(__file__).parent.parent / "admin" / "index.html"
