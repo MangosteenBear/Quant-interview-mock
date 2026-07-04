@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_session, get_pagination
-from app.models import Question, Option, AttemptLog, Favorite, QuestionReport, Tag, question_tags
+from app.models import Question, Option, Solution, AttemptLog, Favorite, QuestionReport, Tag, question_tags
 from app.schemas.common import PageResponse
 from app.schemas.question import (
     QuestionListItem,
@@ -139,12 +139,20 @@ async def search_questions(
     db: AsyncSession = Depends(get_session),
     pagination: dict = Depends(get_pagination),
 ):
-    # dev 用 LIKE 模糊匹配；生产切 PG FTS + pg_jieba
-    pattern = f"%{q}%"
-    conditions = [
-        Question.status == "published",
-        Question.stem_markdown.ilike(pattern),
-    ]
+    # 按空格拆词，每词独立 LIKE AND 匹配（支持多词搜索）
+    from sqlalchemy import or_
+    tokens = [t.strip() for t in q.split() if t.strip()]
+    conditions = [Question.status == "published"]
+    for token in tokens:
+        pattern = f"%{token}%"
+        # stem 或 solution 任意包含该词均可
+        conditions.append(
+            Question.stem_markdown.ilike(pattern) |
+            Question.id.in_(
+                select(Solution.question_id)
+                .where(Solution.content_markdown.ilike(pattern))
+            )
+        )
 
     count_stmt = select(func.count(Question.id))
     for cond in conditions:
