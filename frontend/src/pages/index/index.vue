@@ -57,7 +57,10 @@
     <text class="section-title">按知识点</text>
     <view class="cat-grid">
       <view v-for="tag in topTags" :key="tag.id" class="cat-item" @click="goListWithTag(tag.name)">
-        <text class="cat-name">{{ tag.name }}</text>
+        <view>
+          <text class="cat-name">{{ tag.name }}</text>
+          <text class="cat-count">{{ tag.count }} 题</text>
+        </view>
         <text class="cat-arrow">→</text>
       </view>
     </view>
@@ -85,18 +88,19 @@ import { ref, computed, onMounted } from 'vue'
 import { listQuestions } from '@/api/question'
 import { getStats } from '@/api/stats'
 import { useSettingsStore } from '@/stores/settings'
-import { listTags } from '@/api/tag'
+import { listTopicStats } from '@/api/tag'
+import type { TagWithCount } from '@/api/tag'
 import { useAttemptStore } from '@/stores/attempt'
 import { useQuestionStore } from '@/stores/question'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
-import type { QuestionListItem, TagBrief } from '@/types/api'
+import type { QuestionListItem } from '@/types/api'
 
 const attemptStore = useAttemptStore()
 const questionStore = useQuestionStore()
 const settingsStore = useSettingsStore()
 const totalQuestions = ref(0)
 const allQuestions = ref<QuestionListItem[]>([])
-const topTags = ref<TagBrief[]>([])
+const topTags = ref<TagWithCount[]>([])
 const statsData = ref<{ by_type: Record<string, {total:number;correct:number}> } | null>(null)
 
 const TYPE_LABEL_MAP: Record<string, string> = { short: '简答', choice: '选择', fill: '填空', proof: '证明' }
@@ -181,11 +185,11 @@ onMounted(async () => {
   try {
     const [res, tags] = await Promise.all([
       listQuestions({ page: 1, page_size: 100 }),
-      listTags('topic'),
+      listTopicStats(),
     ])
     totalQuestions.value = res.total
     allQuestions.value = res.items
-    topTags.value = tags.slice(0, 4)
+    topTags.value = tags
   } catch {}
   try {
     settingsStore.initDeviceId()
@@ -299,7 +303,7 @@ onMounted(async () => {
 .cat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 24px;
 }
 .cat-item {
@@ -315,6 +319,12 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary, #2c3338);
+}
+.cat-count {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary, #aaa);
+  margin-top: 2px;
 }
 .cat-arrow {
   font-size: 13px;

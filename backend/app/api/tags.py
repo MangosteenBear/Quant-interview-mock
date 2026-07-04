@@ -22,3 +22,21 @@ async def list_tags(
         stmt = stmt.where(Tag.type == type)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/topic-stats", summary="知识点标签题目数统计")
+async def topic_tag_stats(
+    db: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import func
+    from app.models import question_tags, Question
+    stmt = (
+        select(Tag.id, Tag.name, func.count(question_tags.c.question_id).label("count"))
+        .join(question_tags, Tag.id == question_tags.c.tag_id)
+        .join(Question, Question.id == question_tags.c.question_id)
+        .where(Tag.type == "topic", Question.status == "published")
+        .group_by(Tag.id)
+        .order_by(func.count(question_tags.c.question_id).desc())
+    )
+    rows = (await db.execute(stmt)).all()
+    return [{"id": r.id, "name": r.name, "count": r.count} for r in rows]
