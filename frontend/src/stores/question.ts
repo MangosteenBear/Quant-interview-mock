@@ -101,6 +101,14 @@ export const useQuestionStore = defineStore('question', () => {
     currentIndex.value = index
   }
 
+  function setSearchResults(items: QuestionListItem[], totalCount: number) {
+    list.value = items
+    total.value = totalCount
+    hasMore.value = false
+    currentPage.value = 1
+    totalPages.value = 1
+  }
+
   function clearDetail() {
     detail.value = null
     attemptResult.value = null
@@ -127,5 +135,6 @@ export const useQuestionStore = defineStore('question', () => {
     clearDetail,
     currentIndex,
     setCurrentIndex,
+    setSearchResults,
   }
 })
