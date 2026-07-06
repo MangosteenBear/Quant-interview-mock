@@ -1,21 +1,26 @@
-"""
-数据库引擎与会话管理
-SQLAlchemy 2.0 异步模式，开发用 SQLite (aiosqlite)，生产切 PostgreSQL (asyncpg)
-"""
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
-# 异步引擎
-# echo=False 关闭 SQL 日志（调试时可改 True）
+_engine_kwargs = {}
+if settings.DATABASE_URL.startswith("postgresql"):
+    if settings.SERVERLESS:
+        # Vercel serverless：每次 invocation 独立进程，不能复用连接
+        _engine_kwargs["poolclass"] = NullPool
+    else:
+        # 长驻进程（本地开发 / 服务器）：连接池复用，大幅降低延迟
+        _engine_kwargs["pool_size"] = 5
+        _engine_kwargs["max_overflow"] = 10
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
+    **_engine_kwargs,
 )
 
-# 异步会话工厂
 async_session = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -24,12 +29,10 @@ async_session = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """所有模型的基类"""
     pass
 
 
 async def get_db() -> AsyncSession:
-    """FastAPI 依赖：注入异步数据库会话"""
     async with async_session() as session:
         try:
             yield session
@@ -42,6 +45,8 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """创建所有表（开发环境用，生产用 Alembic 迁移）"""
+    """开发环境建表；生产环境通过 Alembic 管理，此函数跳过"""
+    if settings.DATABASE_URL.startswith("postgresql"):
+        return
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -19,13 +19,16 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = True
 
-    # 数据库
     # 开发: sqlite+aiosqlite:///./quantquiz.db
-    # 生产: postgresql+asyncpg://user:pass@host:5432/dbname
+    # 生产(Supabase Transaction Pooler): postgresql+asyncpg://postgres.[ref]:[pwd]@[host]:6543/postgres
     DATABASE_URL: str = "sqlite+aiosqlite:///./quantquiz.db"
 
-    # CORS 跨域（前端域名，生产环境需收紧）
+    # 生产环境通过 CORS_ORIGINS 环境变量传入前端域名（逗号分隔）
+    # 例: CORS_ORIGINS="https://quantquiz.vercel.app"
     CORS_ORIGINS: list[str] = ["*"]
+
+    # True = Vercel serverless 模式（用 NullPool），False = 长驻进程（用连接池）
+    SERVERLESS: bool = False
 
     # 分页默认值
     DEFAULT_PAGE_SIZE: int = 20

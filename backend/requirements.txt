@@ -9,7 +9,7 @@ uvicorn[standard]>=0.30.0
 # 开发环境用 SQLite (aiosqlite)，生产切 PostgreSQL (asyncpg)
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
-# asyncpg>=0.29.0  # 生产环境 PostgreSQL 时取消注释
+asyncpg>=0.29.0
 
 # 数据库迁移
 alembic>=1.13.0

@@ -164,6 +164,7 @@ const reportSent = ref(false)
 const reportOptions = [
   { value: 'wrong_answer', label: '答案有误' },
   { value: 'bad_options', label: '选项有问题' },
+  { value: 'wrong_tag', label: '分类有问题' },
   { value: 'garbled', label: '题目乱码/排版错误' },
   { value: 'other', label: '其他问题' },
 ]

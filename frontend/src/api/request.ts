@@ -5,7 +5,10 @@
  */
 import type { PageResponse } from '@/types/api'
 
-const BASE_URL = '/api'  // H5 走 vite 代理；小程序端条件编译切绝对地址
+// H5 开发走 vite 代理（/api → localhost:8000）
+// H5 生产由 VITE_API_BASE 环境变量注入后端 URL（例: https://quantquiz-api.vercel.app）
+// 小程序端需在 manifest.json 中配置 request 合法域名
+const BASE_URL = (import.meta.env.VITE_API_BASE ?? '') + '/api'
 
 /** API 错误类型 */
 export interface ApiError {
