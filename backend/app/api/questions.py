@@ -9,7 +9,7 @@ from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_session, get_pagination
+from app.api.deps import get_session, get_current_user_optional, get_pagination
 from app.models import Question, Option, Solution, AttemptLog, Favorite, QuestionReport, Tag, question_tags
 from app.schemas.common import PageResponse
 from app.schemas.question import (
@@ -92,6 +92,40 @@ async def list_questions(
         page_size=pagination["page_size"],
         total_pages=math.ceil(total / pagination["page_size"]) if total > 0 else 0,
     )
+
+
+# ---------- 随机一题 ----------
+@router.get("/random", summary="随机抽一题（支持条件筛选）")
+async def random_question(
+    question_type: str | None = Query(None),
+    difficulty: int | None = Query(None, ge=1, le=5),
+    tag_name: str | None = Query(None),
+    source_id: int | None = Query(None),
+    exclude_id: int | None = Query(None, description="排除当前题，连续随机不重复"),
+    db: AsyncSession = Depends(get_session),
+):
+    stmt = select(Question.id).where(Question.status == "published")
+    if question_type:
+        stmt = stmt.where(Question.question_type == question_type)
+    if difficulty:
+        stmt = stmt.where(Question.difficulty == difficulty)
+    if source_id:
+        stmt = stmt.where(Question.source_id == source_id)
+    if exclude_id:
+        stmt = stmt.where(Question.id != exclude_id)
+    if tag_name:
+        tagged = (
+            select(question_tags.c.question_id)
+            .join(Tag, Tag.id == question_tags.c.tag_id)
+            .where(Tag.name == tag_name)
+        )
+        stmt = stmt.where(
+            (Question.id.in_(tagged)) | (Question.parent_question_id.in_(tagged))
+        )
+    qid = (await db.execute(stmt.order_by(func.random()).limit(1))).scalar_one_or_none()
+    if qid is None:
+        raise HTTPException(404, "没有符合条件的题目")
+    return {"id": qid}
 
 
 # ---------- 详情 ----------
@@ -197,6 +231,7 @@ async def submit_attempt(
     question_id: int,
     body: AttemptRequest,
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
 ):
     # 查题目与正确选项
     stmt = (
@@ -246,6 +281,7 @@ async def submit_attempt(
     # 记录作答日志
     log = AttemptLog(
         device_id=body.device_id,
+        user_id=current_user.id if current_user else None,
         question_id=question_id,
         answer=body.answer,
         is_correct=is_correct,

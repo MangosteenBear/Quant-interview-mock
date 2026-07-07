@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_session, get_pagination
+from app.api.deps import get_session, get_pagination, get_current_user_optional
 from app.models import Favorite, Question
 from app.schemas.common import PageResponse
 from app.schemas.question import QuestionListItem, FavoriteRequest, FavoriteResponse
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/favorites", tags=["收藏"])
 async def toggle_favorite(
     body: FavoriteRequest,
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
 ):
     # 确认题目存在
     exists = (await db.execute(
@@ -42,7 +43,7 @@ async def toggle_favorite(
         return FavoriteResponse(favorited=False, question_id=body.question_id)
     else:
         # 未收藏 → 添加
-        fav = Favorite(device_id=body.device_id, question_id=body.question_id)
+        fav = Favorite(device_id=body.device_id, question_id=body.question_id, user_id=current_user.id if current_user else None)
         db.add(fav)
         return FavoriteResponse(favorited=True, question_id=body.question_id)
 

@@ -77,6 +77,11 @@
         <view v-else-if="!hasMore && list.length > 0" class="tip">没有更多了</view>
       </view>
     </view>
+
+    <!-- 随机一题（继承当前筛选） -->
+    <view class="random-fab" @click="onRandom">
+      <text class="random-fab-text">🎲 随机</text>
+    </view>
   </view>
 </template>
 
@@ -86,6 +91,7 @@ import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useQuestionStore } from '@/stores/question'
 import { useAttemptStore } from '@/stores/attempt'
 import { listSources } from '@/api/source'
+import { getRandomQuestion } from '@/api/user'
 import { listTags } from '@/api/tag'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import type { SourceBrief, TagBrief, QuestionType } from '@/types/api'
@@ -100,6 +106,18 @@ const total = computed(() => questionStore.total)
 const loading = computed(() => questionStore.loading)
 const hasMore = computed(() => questionStore.hasMore)
 const filters = computed(() => questionStore.filters)
+
+async function onRandom() {
+  try {
+    const { id } = await getRandomQuestion({
+      question_type: filters.value.question_type,
+      difficulty: filters.value.difficulty,
+      tag_name: filters.value.tag_name,
+      source_id: filters.value.source_id,
+    })
+    uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+  } catch { /* 无符合条件的题时 toast 已弹 */ }
+}
 
 const sources = ref<SourceBrief[]>([])
 const availableTags = ref<TagBrief[]>([])
@@ -301,5 +319,21 @@ onMounted(async () => {
   padding: 16px;
   font-size: 13px;
   color: var(--text-secondary, #999);
+}
+
+.random-fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: 140rpx;
+  padding: 20rpx 32rpx;
+  background: #1e3a5f;
+  border-radius: 48rpx;
+  box-shadow: 0 8rpx 24rpx rgba(30, 58, 95, 0.35);
+  z-index: 10;
+}
+
+.random-fab-text {
+  color: #fff;
+  font-size: 28rpx;
 }
 </style>
