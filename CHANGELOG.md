@@ -4,6 +4,28 @@
 
 ---
 
+## v2.2 — 2026-07-08
+
+### 全栈上线腾讯云 CVM（Beta 可对外访问）
+
+- **访问地址**：`http://124.221.191.102`（Nginx 80 端口，安全组仅放行 80）
+- **后端**：systemd 服务 `quantquiz`，uvicorn 2 workers 监听 `127.0.0.1:8000`，Nginx 反代 `/api/`
+- **前端**：`npm run build:h5` 产物由 Nginx 静态托管（`frontend/dist/build/h5`）；新增 `frontend/.env.production`，`VITE_API_BASE` 留空走同域反代
+- **部署脚本**（新增 `deploy/` 目录）：
+  - `setup_cvm.sh` — 首次部署（依赖安装、venv、systemd 注册）
+  - `update.sh` — 日常更新（git pull + pip + 重启后端 + 前端构建）
+  - `quantquiz.service` — systemd 单元
+  - `nginx-quantquiz.conf` — Nginx 站点配置
+- **更新流程确立**：本地 push main → 服务器执行 `bash deploy/update.sh`
+- **踩坑记录**：
+  - `.env` 中 `CORS_ORIGINS` 必须为 JSON 数组格式 `["*"]`
+  - `/home/ubuntu` 需 `chmod o+x`，否则 Nginx www-data 无法读取静态文件
+  - 服务器 Node 20 安装前需先卸载系统残留的 `libnode72`
+  - psql 连接需 `-h 127.0.0.1 -U quantquiz` 强制 TCP（peer auth 会失败）
+- **待办**：域名 + ICP 备案 + HTTPS（certbot）
+
+---
+
 ## v2.1 — 2026-07-07
 
 ### 数据库迁移至腾讯云 CVM
