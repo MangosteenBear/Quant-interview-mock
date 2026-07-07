@@ -20,3 +20,6 @@ pydantic-settings>=2.0
 
 # 表单解析（文件上传等）
 python-multipart>=0.0.9
+
+# 账号体系（M2）
+PyJWT>=2.8.0

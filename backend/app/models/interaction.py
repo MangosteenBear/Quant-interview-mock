@@ -17,6 +17,9 @@ class AttemptLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     device_id: Mapped[str] = mapped_column(String(64), comment="匿名设备标识")
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="登录用户，匿名为空"
+    )
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
     answer: Mapped[str | None] = mapped_column(Text, nullable=True, comment="用户作答内容")
     is_correct: Mapped[bool | None] = mapped_column(
@@ -38,6 +41,9 @@ class Favorite(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     device_id: Mapped[str] = mapped_column(String(64), comment="匿名设备标识")
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="登录用户，匿名为空"
+    )
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), comment="收藏时间"
@@ -51,6 +57,9 @@ class QuestionReport(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     device_id: Mapped[str] = mapped_column(String(64), comment="匿名设备标识")
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="登录用户，匿名为空"
+    )
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
     reason: Mapped[str] = mapped_column(String(20), comment="原因: wrong_answer/bad_options/wrong_tag/garbled/other")
     note: Mapped[str | None] = mapped_column(Text, nullable=True, comment="附加说明")

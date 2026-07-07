@@ -20,22 +20,23 @@
 | 答案匹配引擎重写（16 单测全过） | — | 07-07 |
 | 性能优化：相邻题内联 / sources+tags 缓存 / 题干截断 | — | 07-07 |
 | GitHub 部署流程（push → update.sh） | M1 | 07-08 |
+| A01 users/verification_codes 表 + user_id 迁移 SQL | M2 | 07-08 |
+| A02 验证码 API（dev provider 可插拔） | M2 | 07-08 |
+| A03 JWT 签发/校验/刷新（401 静默刷新重试） | M2 | 07-08 |
+| A04 前端登录/注册页 + auth store | M2 | 07-08 |
+| A05 历史数据绑定（登录自动迁移 device_id 记录） | M2 | 07-08 |
+| A06 GET /api/users/me + 设置页账号区 | M2 | 07-08 |
 
 ## 🔵 In Progress
 
 | 任务 | 里程碑 | 说明 |
 |------|--------|------|
-| A01 users 表 | M2 | 建表 + 模型 |
-| A02 验证码 API（dev provider） | M2 | 可插拔，备案后切腾讯云短信 |
-| A03 JWT 签发/校验/刷新 | M2 | access 7d + refresh 30d |
+| M2 生产部署验证 | M2 | 服务器跑迁移 SQL + 配 JWT_SECRET + 真机验证 |
 
 ## ⚪ Todo
 
 | 任务 | 里程碑 | 依赖 |
 |------|--------|------|
-| A04 前端登录/注册页 | M2 | A02, A03 |
-| A05 历史数据迁移弹窗（device_id → user_id） | M2 | A04 |
-| A06 GET /api/users/me + 登录态注入 | M2 | A03 |
 | C01 attempt_logs/favorites 加 user_id | M3 | A01 |
 | C02 错题本 API + 页面 | M3 | C01 |
 | C03 学习统计 API（streak） | M3 | C01 |

@@ -19,3 +19,39 @@ def get_pagination(
 ):
     """分页参数依赖"""
     return {"page": page, "page_size": page_size, "offset": (page - 1) * page_size}
+
+
+from fastapi import Header  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+
+from app.models import User  # noqa: E402
+from app.utils.security import decode_token  # noqa: E402
+
+
+async def get_current_user(
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """必须登录，Header: Authorization: Bearer <token>"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="未登录")
+    user_id = decode_token(authorization[7:], expect_type="access")
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="token 无效或已过期")
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    return user
+
+
+async def get_current_user_optional(
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """可选登录，匿名返回 None"""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    user_id = decode_token(authorization[7:], expect_type="access")
+    if user_id is None:
+        return None
+    return (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()

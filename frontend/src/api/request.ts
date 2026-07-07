@@ -48,15 +48,57 @@ export function request<T>(opts: {
   data?: Record<string, any>
   params?: Record<string, any>
 }): Promise<T> {
+  return doRequest<T>(opts, true)
+}
+
+/** 401 时用 refresh_token 换新 access_token */
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = uni.getStorageSync('refresh_token')
+  if (!refreshToken) return false
+  try {
+    const res = await new Promise<UniApp.RequestSuccessCallbackResult>((resolve, reject) => {
+      uni.request({
+        url: BASE_URL + '/auth/refresh',
+        method: 'POST',
+        data: { refresh_token: refreshToken },
+        header: { 'Content-Type': 'application/json' },
+        success: resolve,
+        fail: reject,
+      })
+    })
+    if (res.statusCode === 200) {
+      uni.setStorageSync('access_token', (res.data as any).access_token)
+      return true
+    }
+  } catch { /* 网络失败按刷新失败处理 */ }
+  uni.removeStorageSync('access_token')
+  uni.removeStorageSync('refresh_token')
+  return false
+}
+
+function doRequest<T>(
+  opts: { url: string; method?: 'GET' | 'POST'; data?: Record<string, any>; params?: Record<string, any> },
+  allowRetry: boolean,
+): Promise<T> {
   return new Promise((resolve, reject) => {
+    const header: Record<string, string> = { 'Content-Type': 'application/json' }
+    const token = uni.getStorageSync('access_token')
+    if (token) header.Authorization = `Bearer ${token}`
+
     uni.request({
       url: BASE_URL + buildUrl(opts.url, opts.params),
       method: opts.method || 'GET',
       data: opts.data,
-      header: { 'Content-Type': 'application/json' },
-      success: (res) => {
+      header,
+      success: async (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data as T)
+        } else if (res.statusCode === 401 && allowRetry && token && !opts.url.startsWith('/auth/')) {
+          if (await tryRefresh()) {
+            doRequest<T>(opts, false).then(resolve, reject)
+          } else {
+            reject(normalizeError(res))
+          }
         } else {
           const err = normalizeError(res)
           uni.showToast({ title: err.message, icon: 'none' })

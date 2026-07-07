@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
+import { useAuthStore } from '@/stores/auth'
 
 const settings = useSettingsStore()
+const auth = useAuthStore()
 
 onMounted(() => {
   settings.initDeviceId()
   settings.applyTheme()
+  auth.restore()
 })
 </script>
 

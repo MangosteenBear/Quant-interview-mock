@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     # True = Vercel serverless 模式（用 NullPool），False = 长驻进程（用连接池）
     SERVERLESS: bool = False
 
+    # JWT（生产必须在 .env 覆盖 JWT_SECRET）
+    JWT_SECRET: str = "dev-secret-change-me"
+    ACCESS_TOKEN_DAYS: int = 7
+    REFRESH_TOKEN_DAYS: int = 30
+
+    # 短信 Provider: dev = 验证码写日志且随响应返回（内测）；tencent = 腾讯云短信（备案后接入）
+    SMS_PROVIDER: str = "dev"
+
     # 分页默认值
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

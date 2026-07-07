@@ -3,6 +3,23 @@
 -->
 <template>
   <view class="settings-page">
+    <!-- 账号 -->
+    <view class="settings-group">
+      <text class="group-title">账号</text>
+      <view v-if="auth.isLoggedIn" class="settings-item">
+        <text class="item-label">{{ auth.user?.nickname || auth.user?.phone }}</text>
+        <text class="item-value">{{ auth.user?.phone }}</text>
+      </view>
+      <view v-if="auth.isLoggedIn" class="settings-item danger" @click="confirmLogout">
+        <text class="item-label danger-text">退出登录</text>
+        <text class="item-arrow">→</text>
+      </view>
+      <view v-else class="settings-item" @click="goLogin">
+        <text class="item-label">登录 / 注册</text>
+        <text class="item-arrow">→</text>
+      </view>
+    </view>
+
     <!-- 主题设置 -->
     <view class="settings-group">
       <text class="group-title">显示设置</text>
@@ -61,9 +78,29 @@
 import { computed, onMounted } from 'vue'
 import { useSettingsStore, type FontSize } from '@/stores/settings'
 import { useAttemptStore } from '@/stores/attempt'
+import { useAuthStore } from '@/stores/auth'
 
 const settings = useSettingsStore()
 const attemptStore = useAttemptStore()
+const auth = useAuthStore()
+
+function goLogin() {
+  uni.navigateTo({ url: '/pages/login/index' })
+}
+
+function confirmLogout() {
+  uni.showModal({
+    title: '退出登录',
+    content: '本机做题记录仍会保留，确认退出？',
+    confirmColor: '#e24b4a',
+    success(res) {
+      if (res.confirm) {
+        auth.logout()
+        uni.showToast({ title: '已退出', icon: 'success' })
+      }
+    },
+  })
+}
 
 const attemptedCount = computed(() => attemptStore.attemptedCount)
 
