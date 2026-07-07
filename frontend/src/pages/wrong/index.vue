@@ -13,7 +13,10 @@
       <view class="count-bar">共 {{ items.length }} 道错题 · 重新答对自动移出</view>
       <view v-for="item in items" :key="item.question.id" class="wrong-item">
         <QuestionCard :question="item.question" @click="goDetail" />
-        <text class="wrong-meta">错 {{ item.wrong_count }} 次 · {{ fmtDate(item.last_wrong_at) }}</text>
+        <view class="wrong-footer">
+          <text class="wrong-meta">错 {{ item.wrong_count }} 次 · {{ fmtDate(item.last_wrong_at) }}</text>
+          <text class="master-btn" @click.stop="onMaster(item.question.id)">✓ 已掌握</text>
+        </view>
       </view>
     </view>
   </view>
@@ -22,7 +25,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getWrongQuestions, type WrongQuestionItem } from '@/api/user'
+import { getWrongQuestions, toggleMastered, type WrongQuestionItem } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import QuestionCard from '@/components/QuestionCard.vue'
@@ -36,6 +39,14 @@ const loading = ref(true)
 function fmtDate(s: string) {
   const d = new Date(s)
   return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+async function onMaster(id: number) {
+  try {
+    await toggleMastered(id, settings.deviceId)
+    items.value = items.value.filter(i => i.question.id !== id)
+    uni.showToast({ title: '已标记掌握', icon: 'success' })
+  } catch { /* toast 已弹 */ }
 }
 
 function goDetail(id: number) {
@@ -80,10 +91,23 @@ onShow(async () => {
   margin-bottom: 8rpx;
 }
 
+.wrong-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16rpx 16rpx;
+}
+
 .wrong-meta {
-  display: block;
   font-size: 22rpx;
   color: #e24b4a;
-  padding: 0 16rpx 16rpx;
+}
+
+.master-btn {
+  font-size: 24rpx;
+  color: #2d8a4f;
+  border: 2rpx solid #2d8a4f;
+  border-radius: 24rpx;
+  padding: 6rpx 20rpx;
 }
 </style>

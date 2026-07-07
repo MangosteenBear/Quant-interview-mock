@@ -44,7 +44,7 @@ function normalizeError(res: UniApp.RequestSuccessCallbackResult): ApiError {
  */
 export function request<T>(opts: {
   url: string
-  method?: 'GET' | 'POST' | 'PATCH'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT'
   data?: Record<string, any>
   params?: Record<string, any>
 }): Promise<T> {
@@ -77,7 +77,7 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 function doRequest<T>(
-  opts: { url: string; method?: 'GET' | 'POST' | 'PATCH'; data?: Record<string, any>; params?: Record<string, any> },
+  opts: { url: string; method?: 'GET' | 'POST' | 'PATCH' | 'PUT'; data?: Record<string, any>; params?: Record<string, any> },
   allowRetry: boolean,
 ): Promise<T> {
   return new Promise((resolve, reject) => {

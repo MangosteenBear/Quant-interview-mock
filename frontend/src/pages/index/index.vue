@@ -24,8 +24,11 @@
       </view>
     </view>
 
-    <!-- 今日推荐 -->
-    <text class="section-title">今日推荐</text>
+    <!-- 每日一题（全站统一） -->
+    <view class="daily-header">
+      <text class="section-title">每日一题</text>
+      <text v-if="dailyDone" class="daily-done">✅ 今日已完成</text>
+    </view>
     <view v-if="dailyQuestion" class="recommend-card" @click="goDailyQuestion">
       <view class="recommend-tags">
         <text v-if="dailyQuestion.difficulty" class="tag">P{{ dailyQuestion.difficulty }}</text>
@@ -79,6 +82,10 @@
         <text class="quick-icon">🎲</text>
         <text class="quick-text">随机题</text>
       </view>
+      <view class="quick-btn" @click="goSmart">
+        <text class="quick-icon">🧠</text>
+        <text class="quick-text">智能刷题</text>
+      </view>
     </view>
   </view>
 </template>
@@ -87,6 +94,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { listQuestions } from '@/api/question'
 import { getStats } from '@/api/stats'
+import { getDailyQuestion, getRandomQuestion } from '@/api/user'
+import { getQuestionDetail } from '@/api/question'
 import { useSettingsStore } from '@/stores/settings'
 import { listTopicStats } from '@/api/tag'
 import type { TagWithCount } from '@/api/tag'
@@ -132,13 +141,17 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
+// 每日一题：服务端按日期确定性选题（全站当天同一道）；加载失败回退客户端选取
+const serverDaily = ref<QuestionListItem | null>(null)
 const dailyQuestion = computed(() => {
+  if (serverDaily.value) return serverDaily.value
   if (!allQuestions.value.length) return null
-  const unattempted = allQuestions.value.filter(q => !attemptStore.getStatus(q.id))
-  const pool = unattempted.length > 0 ? unattempted : allQuestions.value
   const seed = Math.floor(Date.now() / 86400000)
-  return pool[seed % pool.length]
+  return allQuestions.value[seed % allQuestions.value.length]
 })
+const dailyDone = computed(() =>
+  dailyQuestion.value ? !!attemptStore.getStatus(dailyQuestion.value.id) : false
+)
 
 function typeLabel(type: string) {
   return QUESTION_TYPE_LABELS[type] || type
@@ -168,8 +181,14 @@ function goFavorites() {
 
 function goDailyQuestion() {
   if (!dailyQuestion.value) return
-  const idx = allQuestions.value.findIndex(q => q.id === dailyQuestion.value!.id)
-  uni.navigateTo({ url: `/pages/detail/index?id=${dailyQuestion.value.id}&index=${idx}&total=${totalQuestions.value}` })
+  uni.navigateTo({ url: `/pages/detail/index?id=${dailyQuestion.value.id}` })
+}
+
+async function goSmart() {
+  try {
+    const { id } = await getRandomQuestion({ mode: 'smart', device_id: settingsStore.deviceId })
+    uni.navigateTo({ url: `/pages/detail/index?id=${id}` })
+  } catch { /* toast 已弹 */ }
 }
 
 function goRandom() {
@@ -187,6 +206,10 @@ onMounted(async () => {
       listQuestions({ page: 1, page_size: 100 }),
       listTopicStats(),
     ])
+    getDailyQuestion()
+      .then(d => getQuestionDetail(d.id))
+      .then(detail => { serverDaily.value = detail as unknown as QuestionListItem })
+      .catch(() => {})
     totalQuestions.value = res.total
     allQuestions.value = res.items
     topTags.value = tags
@@ -392,4 +415,15 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
+
+.daily-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.daily-done {
+  font-size: 24rpx;
+  color: #2d8a4f;
+}
 </style>

@@ -97,6 +97,28 @@
         <text v-for="tag in detail.tags.filter(t => t.type === 'topic')" :key="tag.id" class="kp-tag">{{ tag.name }}</text>
       </view>
 
+      <!-- 我的笔记 -->
+      <view class="note-section">
+        <view class="note-toggle" @click="noteOpen = !noteOpen">
+          <text>📝 我的笔记</text>
+          <text class="note-badge" v-if="noteContent && !noteOpen">已记录</text>
+          <text class="arrow">{{ noteOpen ? '▼' : '▶' }}</text>
+        </view>
+        <view v-if="noteOpen" class="note-body">
+          <textarea
+            v-model="noteContent"
+            class="note-input"
+            placeholder="记录思路、易错点、公式记忆法…"
+            maxlength="5000"
+            :auto-height="true"
+          />
+          <view class="note-actions">
+            <text class="note-status">{{ noteStatus }}</text>
+            <button class="note-save-btn" size="mini" @click="onSaveNote">保存</button>
+          </view>
+        </view>
+      </view>
+
       <!-- 举报入口 -->
       <view class="report-section">
         <text class="report-btn" @click="showReportSheet = true">⚑ 题目有问题</text>
@@ -140,6 +162,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useQuestionStore } from '@/stores/question'
 import { useFavoriteStore } from '@/stores/favorite'
 import { useSettingsStore } from '@/stores/settings'
+import { getNote, saveNote } from '@/api/user'
 import { useAttemptStore } from '@/stores/attempt'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import FormulaText from '@/components/FormulaText.vue'
@@ -170,6 +193,29 @@ const reportOptions = [
 
 // 页面参数
 const currentId = ref(0)
+
+// ---------- 笔记 ----------
+const noteOpen = ref(false)
+const noteContent = ref('')
+const noteStatus = ref('')
+
+async function loadNote(qid: number) {
+  noteOpen.value = false
+  noteContent.value = ''
+  noteStatus.value = ''
+  try {
+    const res = await getNote(qid, settingsStore.deviceId)
+    noteContent.value = res.content || ''
+  } catch { /* 静默 */ }
+}
+
+async function onSaveNote() {
+  try {
+    const res = await saveNote(currentId.value, settingsStore.deviceId, noteContent.value)
+    noteStatus.value = res.deleted ? '已清空' : '已保存'
+    setTimeout(() => { noteStatus.value = '' }, 2000)
+  } catch { /* toast 已弹 */ }
+}
 const currentIndex = ref(-1)
 const total = ref(0)
 const prevId = ref<number | null>(null)
@@ -320,6 +366,7 @@ async function navigateTo(index: number) {
   reportSent.value = false
   startTime.value = Date.now()
   await questionStore.fetchDetail(q.id)
+  loadNote(q.id)
   // 根据 stem 中 ___N___ 数量初始化输入框
   if (questionStore.detail?.question_type === 'fill') {
     const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
@@ -343,6 +390,7 @@ async function navigateById(id: number) {
   reportSent.value = false
   startTime.value = Date.now()
   await questionStore.fetchDetail(id)
+  loadNote(id)
   if (questionStore.detail?.question_type === 'fill') {
     const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
     fillBlanks.value = Array(matches ? matches.length : 1).fill('')
@@ -383,6 +431,7 @@ onMounted(async () => {
 
   startTime.value = Date.now()
   await questionStore.fetchDetail(currentId.value)
+  loadNote(currentId.value)
   if (questionStore.detail?.question_type === 'fill') {
     const matches = (questionStore.detail.stem_markdown || '').match(/___[①-⑨\d]+___/g)
     fillBlanks.value = Array(matches ? matches.length : 1).fill('')
@@ -714,4 +763,68 @@ onMounted(async () => {
 }
 .nav-btn.disabled { color: var(--text-secondary, #ccc); pointer-events: none; }
 .nav-center { font-size: 13px; color: var(--text-secondary, #888); }
+
+.note-section {
+  margin-top: 20rpx;
+  background: var(--bg-card, #fff);
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.note-toggle {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 28rpx;
+  color: var(--text-primary, #2c3338);
+}
+
+.note-toggle .arrow {
+  margin-left: auto;
+  color: var(--text-secondary, #9ca3af);
+  font-size: 24rpx;
+}
+
+.note-badge {
+  font-size: 22rpx;
+  color: #2d8a4f;
+  background: rgba(45, 138, 79, 0.1);
+  padding: 4rpx 14rpx;
+  border-radius: 20rpx;
+}
+
+.note-body {
+  margin-top: 20rpx;
+}
+
+.note-input {
+  width: 100%;
+  min-height: 160rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  font-size: 28rpx;
+  line-height: 1.6;
+  background: var(--bg-page, #f7f9fc);
+  border-radius: 12rpx;
+  color: var(--text-primary, #2c3338);
+}
+
+.note-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20rpx;
+  margin-top: 16rpx;
+}
+
+.note-status {
+  font-size: 24rpx;
+  color: #2d8a4f;
+}
+
+.note-save-btn {
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 26rpx;
+}
 </style>

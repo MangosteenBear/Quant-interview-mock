@@ -94,6 +94,27 @@ async def list_questions(
     )
 
 
+# ---------- 每日一题 ----------
+import hashlib
+from datetime import date as _date
+
+
+@router.get("/daily", summary="每日一题（全站当天同一道）")
+async def daily_question(db: AsyncSession = Depends(get_session)):
+    today = _date.today().isoformat()
+    total = (await db.execute(
+        select(func.count(Question.id)).where(Question.status == "published")
+    )).scalar() or 0
+    if total == 0:
+        raise HTTPException(404, "题库为空")
+    idx = int(hashlib.md5(today.encode()).hexdigest(), 16) % total
+    qid = (await db.execute(
+        select(Question.id).where(Question.status == "published")
+        .order_by(Question.id).offset(idx).limit(1)
+    )).scalar_one()
+    return {"id": qid, "date": today}
+
+
 # ---------- 随机一题 ----------
 @router.get("/random", summary="随机抽一题（支持条件筛选）")
 async def random_question(
@@ -102,7 +123,10 @@ async def random_question(
     tag_name: str | None = Query(None),
     source_id: int | None = Query(None),
     exclude_id: int | None = Query(None, description="排除当前题，连续随机不重复"),
+    mode: str = Query("random", description="random=全随机 smart=优先错题>未做>随机"),
+    device_id: str | None = Query(None, description="smart 模式的匿名身份"),
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
 ):
     stmt = select(Question.id).where(Question.status == "published")
     if question_type:
@@ -122,10 +146,49 @@ async def random_question(
         stmt = stmt.where(
             (Question.id.in_(tagged)) | (Question.parent_question_id.in_(tagged))
         )
+    # smart 模式：错题 > 未做 > 全随机（三级回退，均在已筛选范围内）
+    if mode == "smart" and (current_user or device_id):
+        from app.models import AttemptLog, MasteredQuestion
+
+        if current_user:
+            ident = AttemptLog.user_id == current_user.id
+            m_ident = MasteredQuestion.user_id == current_user.id
+        else:
+            ident = AttemptLog.device_id == device_id
+            m_ident = MasteredQuestion.device_id == device_id
+
+        rn = func.row_number().over(
+            partition_by=AttemptLog.question_id,
+            order_by=[AttemptLog.created_at.desc(), AttemptLog.id.desc()],
+        ).label("rn")
+        latest = (
+            select(AttemptLog.question_id, AttemptLog.is_correct, rn)
+            .where(ident).subquery()
+        )
+        wrong_ids = select(latest.c.question_id).where(
+            latest.c.rn == 1, latest.c.is_correct == False,  # noqa: E712
+        )
+        mastered_ids = select(MasteredQuestion.question_id).where(m_ident)
+
+        qid = (await db.execute(
+            stmt.where(Question.id.in_(wrong_ids), Question.id.not_in(mastered_ids))
+            .order_by(func.random()).limit(1)
+        )).scalar_one_or_none()
+        if qid is not None:
+            return {"id": qid, "pick": "wrong"}
+
+        attempted_ids = select(AttemptLog.question_id).where(ident)
+        qid = (await db.execute(
+            stmt.where(Question.id.not_in(attempted_ids))
+            .order_by(func.random()).limit(1)
+        )).scalar_one_or_none()
+        if qid is not None:
+            return {"id": qid, "pick": "unseen"}
+
     qid = (await db.execute(stmt.order_by(func.random()).limit(1))).scalar_one_or_none()
     if qid is None:
         raise HTTPException(404, "没有符合条件的题目")
-    return {"id": qid}
+    return {"id": qid, "pick": "random"}
 
 
 # ---------- 详情 ----------
@@ -289,6 +352,12 @@ async def submit_attempt(
     )
     db.add(log)
 
+    # 答错则清除「已掌握」标记，让题目回归错题本
+    if is_correct is False:
+        from app.models import MasteredQuestion as _MQ
+        m_cond = (_MQ.user_id == current_user.id) if current_user else (_MQ.device_id == body.device_id)
+        await db.execute(delete(_MQ).where(m_cond, _MQ.question_id == question_id))
+
     return AttemptResponse(
         is_correct=is_correct,
         correct_answer=correct_answer,
@@ -323,3 +392,99 @@ async def report_question(
     db.add(report)
     await db.commit()
     return {"ok": True}
+
+
+# ---------- M5: 笔记 + 已掌握 ----------
+from datetime import datetime as _dt
+
+from app.models import MasteredQuestion, Note
+
+
+class NoteRequest(_BaseModel):
+    device_id: str
+    content: str
+
+
+def _note_ident(current_user, device_id: str):
+    if current_user:
+        return Note.user_id == current_user.id
+    return Note.device_id == device_id
+
+
+@router.get("/{question_id}/note", summary="获取本人对该题的笔记")
+async def get_note(
+    question_id: int,
+    device_id: str = Query(...),
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
+):
+    note = (await db.execute(
+        select(Note).where(_note_ident(current_user, device_id), Note.question_id == question_id)
+    )).scalar_one_or_none()
+    return {"content": note.content if note else None,
+            "updated_at": note.updated_at if note else None}
+
+
+@router.put("/{question_id}/note", summary="保存笔记（空内容即删除）")
+async def save_note(
+    question_id: int,
+    body: NoteRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
+):
+    content = body.content.strip()
+    if len(content) > 5000:
+        raise HTTPException(400, "笔记最长 5000 字")
+    note = (await db.execute(
+        select(Note).where(_note_ident(current_user, body.device_id), Note.question_id == question_id)
+    )).scalar_one_or_none()
+
+    if not content:
+        if note:
+            await db.delete(note)
+            await db.commit()
+        return {"saved": False, "deleted": True}
+
+    if note:
+        note.content = content
+        note.updated_at = _dt.now()
+    else:
+        db.add(Note(
+            device_id=body.device_id,
+            user_id=current_user.id if current_user else None,
+            question_id=question_id,
+            content=content,
+        ))
+    await db.commit()
+    return {"saved": True, "deleted": False}
+
+
+class MasteredRequest(_BaseModel):
+    device_id: str
+
+
+@router.post("/{question_id}/mastered", summary="切换「已掌握」标记")
+async def toggle_mastered(
+    question_id: int,
+    body: MasteredRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
+):
+    if current_user:
+        ident = MasteredQuestion.user_id == current_user.id
+    else:
+        ident = MasteredQuestion.device_id == body.device_id
+    existing = (await db.execute(
+        select(MasteredQuestion).where(ident, MasteredQuestion.question_id == question_id)
+    )).scalar_one_or_none()
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+        return {"mastered": False}
+    db.add(MasteredQuestion(
+        device_id=body.device_id,
+        user_id=current_user.id if current_user else None,
+        question_id=question_id,
+    ))
+    await db.commit()
+    return {"mastered": True}

@@ -45,6 +45,35 @@ export function getRandomQuestion(params?: {
   tag_name?: string
   source_id?: number
   exclude_id?: number
+  mode?: 'random' | 'smart'
+  device_id?: string
 }) {
-  return request<{ id: number }>({ url: '/questions/random', params })
+  return request<{ id: number; pick?: string }>({ url: '/questions/random', params })
+}
+
+export function getDailyQuestion() {
+  return request<{ id: number; date: string }>({ url: '/questions/daily' })
+}
+
+export function getNote(questionId: number, deviceId: string) {
+  return request<{ content: string | null; updated_at: string | null }>({
+    url: `/questions/${questionId}/note`,
+    params: { device_id: deviceId },
+  })
+}
+
+export function saveNote(questionId: number, deviceId: string, content: string) {
+  return request<{ saved: boolean; deleted: boolean }>({
+    url: `/questions/${questionId}/note`,
+    method: 'PUT',
+    data: { device_id: deviceId, content },
+  })
+}
+
+export function toggleMastered(questionId: number, deviceId: string) {
+  return request<{ mastered: boolean }>({
+    url: `/questions/${questionId}/mastered`,
+    method: 'POST',
+    data: { device_id: deviceId },
+  })
 }

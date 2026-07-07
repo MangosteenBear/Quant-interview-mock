@@ -64,3 +64,38 @@ class QuestionReport(Base):
     reason: Mapped[str] = mapped_column(String(20), comment="原因: wrong_answer/bad_options/wrong_tag/garbled/other")
     note: Mapped[str | None] = mapped_column(Text, nullable=True, comment="附加说明")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class Note(Base):
+    """题目个人笔记（匿名按设备，登录后跨设备）"""
+
+    __tablename__ = "notes"
+    __table_args__ = (
+        UniqueConstraint("device_id", "question_id", name="uq_note_device_question"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
+    content: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class MasteredQuestion(Base):
+    """错题本「已掌握」标记（重新答错自动回归时删除）"""
+
+    __tablename__ = "mastered_questions"
+    __table_args__ = (
+        UniqueConstraint("device_id", "question_id", name="uq_mastered_device_question"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

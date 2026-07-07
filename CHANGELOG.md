@@ -4,6 +4,32 @@
 
 ---
 
+## v2.4 — 2026-07-08
+
+### M5 学习深化：每日一题、笔记、智能刷题、已掌握
+
+产品定位复盘后补齐「每日惯性、深度加工、巩固效率」三个留存环节（详见 PRD M5 章节）：
+
+- **每日一题**：`GET /api/questions/daily` 按日期 hash 确定性选题，全站当天同一道；首页卡片升级为服务端版，完成后显示 ✅
+- **题目笔记**：新增 `notes` 表；`GET/PUT /api/questions/{id}/note`（空内容即删除，上限 5000 字）；详情页折叠笔记区
+- **智能刷题**：`/api/questions/random?mode=smart` 三级回退（最近答错 > 未做过 > 全随机）；首页新增 🧠 智能刷题入口
+- **已掌握标记**：新增 `mastered_questions` 表；错题本每题可标记移出，答错自动清除标记回归错题本；智能刷题同样排除已掌握
+- 全部功能匿名（device_id）与登录（user_id）双身份可用
+- request 层支持 PUT；后端 M5 冒烟测试 11 项全过
+
+> 部署备注：新表由应用启动 create_all 自动创建，本版本无需手动迁移 SQL
+
+## v2.3 — 2026-07-08
+
+### M2+M3：账号体系 + 学习闭环
+
+- **账号**（M2）：手机验证码登录（dev provider 可插拔，ICP 后切腾讯云短信）、JWT access 7d/refresh 30d、401 静默刷新、登录自动绑定设备历史记录
+- **学习闭环**（M3）：错题本（最近作答为准，答对自动移出）、学习统计（正确率/今日/streak/题型分布）、「我的」个人中心 tab（替代设置 tab）、昵称编辑、随机刷题悬浮按钮
+- 新增表：`users`、`verification_codes`；`attempt_logs`/`favorites`/`question_reports` 加 `user_id` 列（迁移脚本 `backend/migrations/001_m2_users.sql`）
+- 匿名用户统计/错题本按 device_id 可用，登录后跨设备
+
+> 部署备注（累积待执行）：服务器需 ① `.env` 加 `JWT_SECRET` ② 跑 001 迁移 SQL ③ update.sh
+
 ## v2.2 — 2026-07-08
 
 ### 全栈上线腾讯云 CVM（Beta 可对外访问）

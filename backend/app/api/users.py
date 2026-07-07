@@ -180,9 +180,20 @@ async def wrong_questions(
         .where(ident)
         .subquery()
     )
+    from app.models import MasteredQuestion
+    if user:
+        m_ident = MasteredQuestion.user_id == user.id
+    else:
+        m_ident = MasteredQuestion.device_id == device_id
+    mastered_ids = select(MasteredQuestion.question_id).where(m_ident)
+
     rows = (await db.execute(
         select(latest.c.question_id, latest.c.created_at)
-        .where(latest.c.rn == 1, latest.c.is_correct == False)  # noqa: E712
+        .where(
+            latest.c.rn == 1,
+            latest.c.is_correct == False,  # noqa: E712
+            latest.c.question_id.not_in(mastered_ids),
+        )
         .order_by(latest.c.created_at.desc())
         .limit(limit)
     )).all()
