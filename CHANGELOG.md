@@ -4,6 +4,17 @@
 
 ---
 
+## v2.1 — 2026-07-07
+
+### 数据库迁移至腾讯云 CVM
+
+- 生产数据库从本地 SQLite 迁移至腾讯云 CVM PostgreSQL 16（`124.221.191.102:5432`）
+- `backend/.env` 切换 `DATABASE_URL` 为 `postgresql+asyncpg://...`
+- SQLite 文件（`backend/quantquiz.db`）保留本地作为备用/离线快照
+- 更新 `docs/architecture.md` 反映新部署状态
+
+---
+
 ## v2.0 — 2026-07-03
 
 ### 新书入库：150 Most Frequently Asked Questions

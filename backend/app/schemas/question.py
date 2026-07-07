@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------- 嵌套子模型 ----------
@@ -27,11 +27,10 @@ class TagBrief(BaseModel):
 
 
 class OptionOut(BaseModel):
-    """选项"""
+    """选项（公开端点不含 is_correct，服务端判题）"""
     id: int
     label: str
     content_markdown: str
-    is_correct: bool
 
     model_config = {"from_attributes": True}
 
@@ -48,7 +47,7 @@ class SolutionOut(BaseModel):
 # ---------- 响应模型 ----------
 
 class QuestionListItem(BaseModel):
-    """题目列表项（精简）"""
+    """题目列表项（精简，stem 截 200 字减小 payload）"""
     id: int
     stem_markdown: str
     question_type: str
@@ -61,9 +60,14 @@ class QuestionListItem(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("stem_markdown")
+    @classmethod
+    def truncate_stem(cls, v: str) -> str:
+        return v[:200] + "…" if len(v) > 200 else v
+
 
 class QuestionDetail(BaseModel):
-    """题目详情（完整，含选项/解析/标签）"""
+    """题目详情（完整，含选项/解析/标签/前后题 ID）"""
     id: int
     stem_markdown: str
     question_type: str
@@ -77,8 +81,10 @@ class QuestionDetail(BaseModel):
     tags: list[TagBrief] = []
     updated_at: datetime | None = None
     parent_question_id: int | None = None
+    adj_prev_id: int | None = None
+    adj_next_id: int | None = None
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 # ---------- 请求模型 ----------

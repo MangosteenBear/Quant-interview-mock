@@ -3,7 +3,6 @@
 8 个端点中的 6 个：列表/详情/搜索/作答/收藏切换/收藏列表
 """
 import math
-import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, delete
@@ -22,6 +21,7 @@ from app.schemas.question import (
     FavoriteResponse,
     AdjacentResponse,
 )
+from app.utils.answer_match import judge_choice, judge_fill, format_fill_answer
 
 router = APIRouter(prefix="/api/questions", tags=["题目"])
 
@@ -95,7 +95,7 @@ async def list_questions(
 
 
 # ---------- 详情 ----------
-@router.get("/{question_id}", response_model=QuestionDetail, summary="题目详情")
+@router.get("/{question_id}", response_model=QuestionDetail, summary="题目详情（含前后题 ID）")
 async def get_question(
     question_id: int,
     db: AsyncSession = Depends(get_session),
@@ -113,7 +113,21 @@ async def get_question(
     question = (await db.execute(stmt)).scalar_one_or_none()
     if not question:
         raise HTTPException(status_code=404, detail=f"题目 {question_id} 不存在")
-    return question
+
+    # 前后题 ID 一并返回，省去客户端额外请求
+    prev_id = (await db.execute(
+        select(Question.id).where(Question.status == "published", Question.id < question_id)
+        .order_by(Question.id.desc()).limit(1)
+    )).scalar_one_or_none()
+    next_id = (await db.execute(
+        select(Question.id).where(Question.status == "published", Question.id > question_id)
+        .order_by(Question.id).limit(1)
+    )).scalar_one_or_none()
+
+    result = QuestionDetail.model_validate(question)
+    result.adj_prev_id = prev_id
+    result.adj_next_id = next_id
+    return result
 
 
 # ---------- 前后题 ----------
@@ -199,57 +213,35 @@ async def submit_attempt(
     correct_answer = None
 
     if question.question_type == "choice":
-        correct_opts = [o for o in question.options if o.is_correct]
-        correct_set = set(o.label for o in correct_opts)
-        user_labels = set(body.answer.strip().upper().replace("，", ",").split(","))
-        is_correct = user_labels == correct_set
-        # 格式："正确答案 A：xxxx"（多选用 / 分隔）
-        correct_answer = "  /  ".join(
-            f"正确答案 {o.label}：{o.content_markdown}"
-            for o in sorted(correct_opts, key=lambda x: x.label)
+        correct_opts = sorted(
+            [o for o in question.options if o.is_correct], key=lambda x: x.label
         )
+        correct_set = {o.label for o in correct_opts}
+        is_correct = judge_choice(body.answer, correct_set)
+        correct_answer = "  /  ".join(
+            f"正确答案 {o.label}：{o.content_markdown}" for o in correct_opts
+        )
+
     elif question.question_type == "fill":
-        if question.solutions:
-            # 优先用 version=1（短答案），无则用第一条
-            short_sol = next((s for s in question.solutions if s.version == 1), None)
-            ref_raw = (short_sol or question.solutions[0]).content_markdown.strip()
-            correct_answer = ref_raw
-
-            def normalize_blank(s: str) -> str:
-                """去序号前缀(1./①)、strip、lower"""
-                s = re.sub(r'^\d+\.\s*', '', s.strip())  # "1. answer" → "answer"
-                s = re.sub(r'^[①②③④⑤⑥⑦⑧⑨]\s*', '', s)
-                return s.strip().lower()
-
-            def accepted_vals(ref_part: str):
-                """将 'a lot (lots)' 展开为 ['a lot', 'lots']"""
-                base = normalize_blank(ref_part)
-                alts = [base]
-                m = re.search(r'\(([^)]+)\)', base)
-                if m:
-                    # 括号内容作为备选
-                    alts.append(m.group(1).strip().lower())
-                    alts.append(re.sub(r'\s*\([^)]+\)', '', base).strip())
-                return alts
-
-            ref_parts = [p for p in ref_raw.split("|")]
-            user_parts = [p.strip() for p in body.answer.strip().split("|")]
-
-            def blank_match(user: str, ref: str) -> bool:
-                u = normalize_blank(user)
-                return u in accepted_vals(ref)
-
-            if len(ref_parts) == 1:
-                is_correct = blank_match(user_parts[0], ref_parts[0]) if user_parts else False
-            else:
-                is_correct = (len(user_parts) == len(ref_parts) and
-                              all(blank_match(u, r) for u, r in zip(user_parts, ref_parts)))
+        short_sol = next((s for s in question.solutions if s.version == 1), None)
+        sol = short_sol or (question.solutions[0] if question.solutions else None)
+        if sol:
+            ref_raw = sol.content_markdown.strip()
+            is_correct, _ = judge_fill(body.answer, ref_raw)
+            correct_answer = format_fill_answer(ref_raw)
         else:
             is_correct = False
+
     else:
-        # 简答/证明：不自动判错，返回参考答案
+        # 简答/证明：不自动判错，展示参考答案
         if question.solutions:
             correct_answer = question.solutions[0].content_markdown
+
+    # 解析优先用 version=2（原题完整解析）
+    explanation = None
+    if question.solutions:
+        full_sol = next((s for s in question.solutions if s.version == 2), None)
+        explanation = (full_sol or question.solutions[0]).content_markdown
 
     # 记录作答日志
     log = AttemptLog(
@@ -260,16 +252,6 @@ async def submit_attempt(
         duration_ms=body.duration_ms,
     )
     db.add(log)
-
-    # 解析优先用 version=2（原题完整解析）
-    explanation = None
-    if question.solutions:
-        full_sol = next((s for s in question.solutions if s.version == 2), None)
-        explanation = (full_sol or question.solutions[0]).content_markdown
-
-    # 填空题展示答案时去掉序号前缀，方便用户对照
-    if question.question_type == "fill" and correct_answer:
-        correct_answer = re.sub(r'(?m)^\d+\.\s*', '', correct_answer).strip()
 
     return AttemptResponse(
         is_correct=is_correct,

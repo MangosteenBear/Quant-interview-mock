@@ -280,13 +280,12 @@ favorites (id, device_id, question_id, created_at)
 - 后端 API + 审核后台
 - 部署上线
 
-### Next（二期迭代）
-- 公开平台合规爬虫拓展题库
-- 用户账号体系（JWT + 微信登录）
-- 错题本云同步 + 复习提醒
-- 计时模考模式（套卷/限时/成绩）
-- 难度分级筛选、岗位筛选 UI
-- 学习进度统计可视化
+### Next（二期，当前）— 详见 [prd-v2-beta-launch.md](./prd-v2-beta-launch.md)
+
+- **M1 上线基础**（Nginx + HTTPS + systemd + 安全修复）
+- **M2 账号体系**（手机号验证码注册/登录 + JWT）
+- **M3 学习闭环**（错题本 + 进度统计 + 随机刷题）
+- **M4 体验提升**（筛选 UI + PG FTS 搜索 + 模考模式）
 
 ### Later（长期）
 - 完整量化面试题库生态（覆盖数理统计、概率、金融衍生品、C++/Python 量化编程、算法、brain teaser、机器学习全题型）

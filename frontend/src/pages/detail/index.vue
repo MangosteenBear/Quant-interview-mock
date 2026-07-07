@@ -144,7 +144,6 @@ import { useAttemptStore } from '@/stores/attempt'
 import { QUESTION_TYPE_LABELS } from '@/utils/difficulty'
 import FormulaText from '@/components/FormulaText.vue'
 import DifficultyTag from '@/components/DifficultyTag.vue'
-import { getAdjacentQuestions } from '@/api/question'
 
 const questionStore = useQuestionStore()
 const favoriteStore = useFavoriteStore()
@@ -349,9 +348,9 @@ async function navigateById(id: number) {
     fillBlanks.value = Array(matches ? matches.length : 1).fill('')
   }
   isFav.value = favoriteStore.isFavorited(id)
-  const adj = await getAdjacentQuestions(id)
-  prevId.value = adj.prev_id
-  nextId.value = adj.next_id
+  // adj IDs 已内嵌在详情响应中，无需额外请求
+  prevId.value = questionStore.detail?.adj_prev_id ?? null
+  nextId.value = questionStore.detail?.adj_next_id ?? null
 }
 
 function goPrev() {
@@ -394,11 +393,10 @@ onMounted(async () => {
   }
   isFav.value = favoriteStore.isFavorited(currentId.value)
 
-  // 当无列表上下文时（随机/每日/收藏入口），用 adjacent API 激活前后题按钮
+  // 当无列表上下文时（收藏/随机入口），用详情响应内嵌的 adj 字段激活前后题按钮
   if (questionStore.list.length === 0) {
-    const adj = await getAdjacentQuestions(currentId.value)
-    prevId.value = adj.prev_id
-    nextId.value = adj.next_id
+    prevId.value = questionStore.detail?.adj_prev_id ?? null
+    nextId.value = questionStore.detail?.adj_next_id ?? null
   }
 })
 </script>

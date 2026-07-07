@@ -23,7 +23,7 @@ export interface OptionOut {
   id: number
   label: string
   content_markdown: string
-  is_correct: boolean  // ⚠️ 后端返回，前端 API 层会剥离
+  // is_correct 已在服务端剥离，不再下发
 }
 
 export interface SolutionOut {
@@ -46,20 +46,18 @@ export interface QuestionListItem {
   parent_question_id: number | null
 }
 
-/** 后端返回的完整详情（含 is_correct） */
+/** 后端返回的完整详情（is_correct 已服务端剥离，含前后题 ID） */
 export interface QuestionDetail extends QuestionListItem {
   book_page: number | null
   options: OptionOut[]
   solutions: SolutionOut[]
   updated_at: string | null
+  adj_prev_id: number | null
+  adj_next_id: number | null
 }
 
-/** 前端安全类型：剥离 is_correct 后给 UI 层用 */
-export interface SafeOption {
-  id: number
-  label: string
-  content_markdown: string
-}
+/** 前端安全类型（OptionOut 已无 is_correct，SafeOption = OptionOut） */
+export type SafeOption = OptionOut
 
 export interface SafeQuestionDetail extends QuestionListItem {
   book_page: number | null
@@ -67,6 +65,8 @@ export interface SafeQuestionDetail extends QuestionListItem {
   solutions: SolutionOut[]
   updated_at: string | null
   parent_question_id: number | null
+  adj_prev_id: number | null
+  adj_next_id: number | null
 }
 
 // ---------- 通用响应 ----------

@@ -1,6 +1,7 @@
 """
 标签接口模块
 """
+import time
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,17 +12,26 @@ from app.schemas.question import TagBrief
 
 router = APIRouter(prefix="/api/tags", tags=["标签"])
 
+_tags_cache: dict[str, tuple[list, float]] = {}
+_CACHE_TTL = 300.0  # 5 分钟
+
 
 @router.get("", response_model=list[TagBrief], summary="标签列表")
 async def list_tags(
     type: str | None = Query(None, description="按类型筛选: knowledge/position/topic"),
     db: AsyncSession = Depends(get_session),
 ):
+    cache_key = type or "__all__"
+    cached = _tags_cache.get(cache_key)
+    if cached is not None and time.monotonic() - cached[1] < _CACHE_TTL:
+        return cached[0]
     stmt = select(Tag).order_by(Tag.type, Tag.id)
     if type:
         stmt = stmt.where(Tag.type == type)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    data = result.scalars().all()
+    _tags_cache[cache_key] = (data, time.monotonic())
+    return data
 
 
 @router.get("/topic-stats", summary="知识点标签题目数统计")

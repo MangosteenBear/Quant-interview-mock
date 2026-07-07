@@ -2,13 +2,11 @@
  * 题目相关 API
  * 列表 / 详情 / 搜索 / 作答
  *
- * ⚠️ 安全关键：getQuestionDetail 会剥离 options 的 is_correct 字段，
- * 返回 SafeQuestionDetail，防止作答前答案泄露
+ * is_correct 已在服务端剥离，adj_prev_id/adj_next_id 随详情一起返回
  */
 import { request } from './request'
 import type {
   QuestionListItem,
-  QuestionDetail,
   SafeQuestionDetail,
   PageResponse,
   QuestionFilter,
@@ -24,21 +22,9 @@ export function listQuestions(params: QuestionFilter = {}) {
   })
 }
 
-/**
- * 题目详情
- * ⚠️ 剥离 is_correct 字段，UI 层拿不到正确答案
- */
-export async function getQuestionDetail(id: number): Promise<SafeQuestionDetail> {
-  const raw = await request<QuestionDetail>({ url: `/questions/${id}` })
-  // 安全关键：剥离 is_correct，防止作答前答案泄露
-  return {
-    ...raw,
-    options: raw.options.map(o => ({
-      id: o.id,
-      label: o.label,
-      content_markdown: o.content_markdown,
-    })),
-  }
+/** 题目详情（含 adj_prev_id / adj_next_id，is_correct 已服务端剥离） */
+export function getQuestionDetail(id: number): Promise<SafeQuestionDetail> {
+  return request<SafeQuestionDetail>({ url: `/questions/${id}` })
 }
 
 /** 关键词搜索 */
@@ -55,12 +41,5 @@ export function submitAttempt(id: number, body: AttemptRequest) {
     url: `/questions/${id}/attempt`,
     method: 'POST',
     data: body,
-  })
-}
-
-/** 获取前后题 ID */
-export function getAdjacentQuestions(id: number) {
-  return request<{ prev_id: number | null; next_id: number | null }>({
-    url: `/questions/${id}/adjacent`,
   })
 }
