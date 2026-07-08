@@ -99,3 +99,23 @@ class MasteredQuestion(Base):
     )
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class ExamSession(Base):
+    """模考会话（轻量版：choice/fill 自动判分）"""
+
+    __tablename__ = "exam_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    question_ids: Mapped[str] = mapped_column(Text, comment="题目 ID 列表 JSON")
+    time_limit_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score_correct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True, comment="判分明细 JSON")

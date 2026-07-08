@@ -29,6 +29,10 @@
       "style": { "navigationBarTitleText": "错题本" }
     },
     {
+      "path": "pages/exam/index",
+      "style": { "navigationBarTitleText": "模拟考试" }
+    },
+    {
       "path": "pages/login/index",
       "style": { "navigationBarTitleText": "登录" }
     },

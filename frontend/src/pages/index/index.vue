@@ -86,6 +86,10 @@
         <text class="quick-icon">🧠</text>
         <text class="quick-text">智能刷题</text>
       </view>
+      <view class="quick-btn" @click="goExam">
+        <text class="quick-icon">📝</text>
+        <text class="quick-text">模考</text>
+      </view>
     </view>
   </view>
 </template>
@@ -182,6 +186,10 @@ function goFavorites() {
 function goDailyQuestion() {
   if (!dailyQuestion.value) return
   uni.navigateTo({ url: `/pages/detail/index?id=${dailyQuestion.value.id}` })
+}
+
+function goExam() {
+  uni.navigateTo({ url: '/pages/exam/index' })
 }
 
 async function goSmart() {

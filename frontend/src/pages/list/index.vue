@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { useQuestionStore } from '@/stores/question'
 import { useAttemptStore } from '@/stores/attempt'
@@ -169,6 +169,23 @@ function goDetail(id: number, index: number) {
   uni.navigateTo({ url: `/pages/detail/index?id=${id}&index=${index}&total=${total.value}` })
 }
 
+// 筛选状态写入 URL，刷新后仍保留（仅 H5）
+watch(
+  () => [filters.value.question_type, filters.value.difficulty, filters.value.tag_name, filters.value.source_id],
+  () => {
+    // #ifdef H5
+    const q = new URLSearchParams()
+    if (filters.value.question_type) q.set('type', filters.value.question_type)
+    if (filters.value.difficulty) q.set('difficulty', String(filters.value.difficulty))
+    if (filters.value.tag_name) q.set('tag', filters.value.tag_name)
+    if (filters.value.source_id) q.set('source', String(filters.value.source_id))
+    const qs = q.toString()
+    const [base] = window.location.href.split('?')
+    window.history.replaceState({}, '', qs ? `${base}?${qs}` : base)
+    // #endif
+  },
+)
+
 onReachBottom(() => questionStore.loadMore())
 
 onShow(async () => {
@@ -180,8 +197,11 @@ onMounted(async () => {
   attemptStore.init()
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1] as any
-  const typeParam = currentPage?.options?.type as QuestionType | undefined
-  if (typeParam) questionStore.filters.question_type = typeParam
+  const opts = currentPage?.options || {}
+  if (opts.type) questionStore.filters.question_type = opts.type as QuestionType
+  if (opts.difficulty) questionStore.filters.difficulty = parseInt(opts.difficulty, 10) || undefined
+  if (opts.tag) questionStore.filters.tag_name = decodeURIComponent(opts.tag)
+  if (opts.source) questionStore.filters.source_id = parseInt(opts.source, 10) || undefined
 
   try {
     const [srcs, tags] = await Promise.all([listSources(), listTags('topic')])

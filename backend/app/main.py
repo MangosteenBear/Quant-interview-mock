@@ -75,6 +75,7 @@ from app.api.admin import router as admin_router
 from app.api.stats import router as stats_router  # noqa: E402
 from app.api.auth import router as auth_router  # noqa: E402
 from app.api.users import router as users_router  # noqa: E402
+from app.api.exam import router as exam_router  # noqa: E402
 
 app.include_router(questions_router)
 app.include_router(favorites_router)
@@ -84,6 +85,7 @@ app.include_router(admin_router)
 app.include_router(stats_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(exam_router)
 
 # 管理后台静态页
 _admin_html = Path(__file__).parent.parent / "admin" / "index.html"

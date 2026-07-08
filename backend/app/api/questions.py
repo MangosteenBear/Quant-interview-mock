@@ -276,7 +276,12 @@ async def search_questions(
     )
     for cond in conditions:
         stmt = stmt.where(cond)
-    stmt = stmt.order_by(Question.id).offset(pagination["offset"]).limit(pagination["page_size"])
+    # PG 用 pg_trgm 相似度做相关性排序（GIN 索引已建）；SQLite 开发环境回退 id 排序
+    if db.get_bind().dialect.name == "postgresql":
+        stmt = stmt.order_by(func.similarity(Question.stem_markdown, q).desc(), Question.id)
+    else:
+        stmt = stmt.order_by(Question.id)
+    stmt = stmt.offset(pagination["offset"]).limit(pagination["page_size"])
     items = (await db.execute(stmt)).scalars().all()
 
     return PageResponse(
